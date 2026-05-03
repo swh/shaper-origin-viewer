@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:shaper="http://www.shapertools.com/namespaces/shaper" width="25.4mm" height="25.4mm" viewBox="0 -25.4 25.4 25.4"> <g id="sg-e7945a55-b043-467a-b792-e74df9be8f37"  transform="matrix(1 0 0 1 12.7 -12.7)">
+  <path id="basePath-sg-e7945a55-b043-467a-b792-e74df9be8f37-pg-6e06f12b-1f7a-4508-b23a-102864b0a682"  fill="#7F7F7F" transform="matrix(1 0 0 1 0 0)" fill-rule="nonzero" shaper:cutType="pocket" shaper:cutDepth="0.250 in" shaper:cutOffset="0in" shaper:toolDia="0.125in" d = "M -12.7 -12.7 L 12.7 -12.7 L 12.7 12.7 L -12.7 12.7 Z" />
+</g>
+<g id="sg-0ef2843a-478a-4053-b9c4-43bd2a61c62b"  transform="matrix(1 0 0 1 1.852 -3.175)">
+  <path id="basePath-sg-0ef2843a-478a-4053-b9c4-43bd2a61c62b-pg-2c631caf-3fd2-40e2-9d8e-007f19c6ae9d"  fill="#FF0000" transform="matrix(1 0 0 1 0 0)" shaper:cutType="anchor" shaper:cutOffset="0in" shaper:toolDia="0.125in" d = "M -1.852 -3.175 L -1.852 3.175 1.852 3.175 -1.852 -3.175 Z " />
+</g> </svg>
