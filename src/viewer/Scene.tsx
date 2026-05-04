@@ -58,7 +58,12 @@ export function Scene() {
         position={[0, -boardThicknessMm - 0.1, 0]}
       />
 
-      <OrbitControls makeDefault enableDamping target={[0, -boardThicknessMm / 2, 0]} />
+      <OrbitControls
+        makeDefault
+        enableDamping
+        zoomSpeed={0.5}
+        target={[0, -boardThicknessMm / 2, 0]}
+      />
     </Canvas>
   );
 }

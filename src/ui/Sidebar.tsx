@@ -244,6 +244,7 @@ function NumberRow({
           step={step}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
+          onWheel={(e) => (e.target as HTMLInputElement).blur()}
           onKeyDown={(e) => {
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             else if (e.key === "Escape") {

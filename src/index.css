@@ -9,3 +9,15 @@ body,
   color: #e8e8e8;
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
+
+/* Hide the native number-input spinner buttons — clicking near the edge of
+   a focused number input was nudging the value. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
