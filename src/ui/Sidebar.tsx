@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type DragEvent, useEffect, useState } from "react";
 import { BITS, CUSTOM_BIT_ID, bitById } from "../depth";
 import { EXAMPLES } from "../examples";
 import { useStore } from "../store";
@@ -14,8 +14,10 @@ export function Sidebar() {
     customDiameterMm,
     speciesId,
     doc,
-    renderMode,
     debugCutVolumes,
+    loadError,
+    placement,
+    placeMode,
     loadSvg,
     setBoardWidth,
     setBoardHeight,
@@ -23,8 +25,9 @@ export function Sidebar() {
     setBitId,
     setCustomDiameter,
     setSpecies,
-    setRenderMode,
     setDebugCutVolumes,
+    setPlacement,
+    setPlaceMode,
   } = useStore();
   const selectedBit = bitId === CUSTOM_BIT_ID ? null : bitById(bitId);
   const isCustom = bitId === CUSTOM_BIT_ID;
@@ -34,6 +37,18 @@ export function Sidebar() {
   const imperialBits = BITS.filter((b) => b.group === "imperial");
 
   const cutCount = doc?.cuts.length ?? 0;
+  const [isDragging, setIsDragging] = useState(false);
+
+  async function loadFile(file: File) {
+    const text = await file.text();
+    loadSvg(text, file.name);
+  }
+  function onDrop(e: DragEvent<HTMLLabelElement>) {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) void loadFile(file);
+  }
 
   return (
     <aside className="w-80 shrink-0 border-r border-neutral-800 bg-neutral-950 text-neutral-200 overflow-y-auto">
@@ -43,7 +58,40 @@ export function Sidebar() {
           <p className="text-xs text-neutral-500 mt-0.5">3D preview of Shaper Origin SVG cuts</p>
         </div>
 
-        <Section label="Example design">
+        <Section label="Design">
+          <label
+            className={`block border-2 border-dashed rounded-md px-3 py-5 text-center text-xs cursor-pointer transition ${
+              isDragging
+                ? "border-amber-400 bg-amber-400/10 text-amber-200"
+                : "border-neutral-700 hover:border-neutral-600 text-neutral-400"
+            }`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={onDrop}
+          >
+            <input
+              type="file"
+              accept=".svg,image/svg+xml"
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void loadFile(f);
+                e.target.value = ""; // allow re-selecting the same file
+              }}
+            />
+            <span className="block">Drop an SVG here</span>
+            <span className="block text-[10px] text-neutral-500 mt-0.5">or click to browse</span>
+          </label>
+
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-neutral-600">
+            <span className="flex-1 border-t border-neutral-800" />
+            or pick an example
+            <span className="flex-1 border-t border-neutral-800" />
+          </div>
+
           <select
             className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1.5 text-sm"
             value={svgName ?? ""}
@@ -60,13 +108,60 @@ export function Sidebar() {
               </option>
             ))}
           </select>
-          {doc && (
-            <p className="text-xs text-neutral-500 mt-2">
-              {doc.widthMm.toFixed(1)} × {doc.heightMm.toFixed(1)} mm — {cutCount} cut
+
+          {loadError && (
+            <p className="text-xs text-red-400 leading-tight">Couldn't parse SVG: {loadError}</p>
+          )}
+          {doc && !loadError && (
+            <p className="text-xs text-neutral-500">
+              {svgName} — {doc.widthMm.toFixed(1)} × {doc.heightMm.toFixed(1)} mm, {cutCount} cut
               {cutCount === 1 ? "" : "s"}
             </p>
           )}
         </Section>
+
+        {doc && (
+          <Section label="Placement">
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPlaceMode(!placeMode)}
+                className={`flex-1 rounded border px-2 py-1.5 text-sm transition ${
+                  placeMode
+                    ? "border-amber-400 bg-amber-400/15 text-amber-200"
+                    : "border-neutral-800 hover:border-neutral-600 text-neutral-300"
+                }`}
+              >
+                {placeMode ? "Click on the board…" : "Move design"}
+              </button>
+              {placement && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlacement(null);
+                    setPlaceMode(false);
+                  }}
+                  className="rounded border border-neutral-800 hover:border-neutral-600 px-2 py-1.5 text-xs text-neutral-400"
+                  title="Reset to centred placement"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-neutral-500 leading-tight">
+              {placeMode
+                ? "Click on the board to drop the design. Esc to cancel."
+                : placement
+                  ? `${doc?.anchor ? "Anchor" : "Centre"} at ${placement.x.toFixed(1)}, ${placement.y.toFixed(1)} mm`
+                  : doc?.anchor
+                    ? "Anchor at board centre."
+                    : "Auto-centred on the board."}
+            </p>
+            <p className="text-[11px] text-neutral-600 leading-tight">
+              Tip: hold Shift and drag on the board to nudge the design without entering move mode.
+            </p>
+          </Section>
+        )}
 
         <Section label="Board">
           <NumberRow label="Width" value={boardWidthMm} onChange={setBoardWidth} unit="mm" />
@@ -152,29 +247,6 @@ export function Sidebar() {
               shape modelling lands in a later phase.
             </p>
           )}
-        </Section>
-
-        <Section label="Render mode">
-          <div className="flex rounded border border-neutral-800 overflow-hidden text-sm">
-            {(["csg", "heightmap"] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setRenderMode(mode)}
-                className={`flex-1 px-2 py-1.5 transition ${
-                  renderMode === mode
-                    ? "bg-amber-400/20 text-amber-200"
-                    : "text-neutral-400 hover:bg-neutral-900"
-                }`}
-              >
-                {mode === "csg" ? "CSG" : "Heightmap"}
-              </button>
-            ))}
-          </div>
-          <p className="text-[11px] text-neutral-500 leading-tight">
-            CSG gives smooth curved walls but can fail on tricky topology. Heightmap is rasterised
-            and always renders something, at the cost of stair-stepped walls.
-          </p>
         </Section>
 
         <Section label="Cut volumes">

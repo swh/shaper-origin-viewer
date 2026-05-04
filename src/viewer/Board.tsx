@@ -23,12 +23,14 @@ type Props = {
   tool: Tool;
   speciesId: string;
   renderMode: RenderMode;
+  /** Where the SVG's (0, 0) lands on the board, in board-mm. */
+  origin: { x: number; y: number };
   debugCutVolumes?: boolean;
 };
 
 const RASTER_PITCH_MM = 0.1;
 
-export function Board({ doc, board, tool, speciesId, renderMode, debugCutVolumes }: Props) {
+export function Board({ doc, board, tool, speciesId, renderMode, origin, debugCutVolumes }: Props) {
   const { widthMm, heightMm, thicknessMm } = board;
   const { diameterMm, profile } = tool;
   const debug = !!debugCutVolumes;
@@ -36,15 +38,32 @@ export function Board({ doc, board, tool, speciesId, renderMode, debugCutVolumes
   const node = useMemo(
     () =>
       debug
-        ? buildDebugCutVolumes(doc, { widthMm, heightMm, thicknessMm }, { diameterMm, profile })
+        ? buildDebugCutVolumes(
+            doc,
+            { widthMm, heightMm, thicknessMm },
+            { diameterMm, profile },
+            origin,
+          )
         : buildBoardMesh(
             doc,
             { widthMm, heightMm, thicknessMm },
             { diameterMm, profile },
             speciesById(speciesId),
             renderMode,
+            origin,
           ),
-    [doc, widthMm, heightMm, thicknessMm, diameterMm, profile, speciesId, renderMode, debug],
+    [
+      doc,
+      widthMm,
+      heightMm,
+      thicknessMm,
+      diameterMm,
+      profile,
+      speciesId,
+      renderMode,
+      origin,
+      debug,
+    ],
   );
 
   return <primitive object={node} />;
@@ -56,6 +75,7 @@ function buildBoardMesh(
   tool: Tool,
   species: Species,
   mode: RenderMode,
+  origin: { x: number; y: number },
 ): Mesh {
   const material = new MeshStandardMaterial({
     color: species.color,
@@ -64,7 +84,7 @@ function buildBoardMesh(
   });
 
   if (mode === "csg") {
-    return buildCsgMesh(doc, board, tool, material);
+    return buildCsgMesh(doc, board, tool, material, origin);
   }
 
   if (!doc) {
@@ -75,7 +95,7 @@ function buildBoardMesh(
     return new Mesh(geom, material);
   }
 
-  const field = renderDepth(doc, board, { pitchMm: RASTER_PITCH_MM, tool });
+  const field = renderDepth(doc, board, { pitchMm: RASTER_PITCH_MM, tool, origin });
   const geom = buildHeightmapMesh(field, board);
   return new Mesh(geom, material);
 }
@@ -85,10 +105,15 @@ function buildBoardMesh(
  * Useful for understanding which cut produces which feature, especially when
  * a cut renders unexpectedly in the main view.
  */
-function buildDebugCutVolumes(doc: Doc | null, board: BoardParams, tool: Tool): Group {
+function buildDebugCutVolumes(
+  doc: Doc | null,
+  board: BoardParams,
+  tool: Tool,
+  origin: { x: number; y: number },
+): Group {
   const group = new ThreeGroup();
   if (!doc) return group;
-  const volumes = buildCutVolumes(doc, board, tool);
+  const volumes = buildCutVolumes(doc, board, tool, { origin });
   const ROT = new Matrix4().makeRotationX(Math.PI / 2);
   const cutColor = new Color("#ffaa33");
   for (const v of volumes) {

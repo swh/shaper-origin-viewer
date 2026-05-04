@@ -19,6 +19,15 @@ type State = {
   units: Units;
   renderMode: RenderMode;
   debugCutVolumes: boolean;
+  /** Error from the most recent loadSvg call, or null on success. */
+  loadError: string | null;
+  /**
+   * Where the SVG's (0, 0) lands on the board, in board-mm. null = auto-place
+   * (centre the SVG on the board, or use the anchor when one is present).
+   */
+  placement: { x: number; y: number } | null;
+  /** When true, the next click on the board sets the placement. */
+  placeMode: boolean;
 
   loadSvg: (text: string, name: string) => void;
   setBoardWidth: (mm: number) => void;
@@ -30,6 +39,8 @@ type State = {
   setUnits: (u: Units) => void;
   setRenderMode: (m: RenderMode) => void;
   setDebugCutVolumes: (v: boolean) => void;
+  setPlacement: (p: { x: number; y: number } | null) => void;
+  setPlaceMode: (on: boolean) => void;
 };
 
 export const useStore = create<State>((set) => ({
@@ -44,10 +55,18 @@ export const useStore = create<State>((set) => ({
   units: "mm",
   renderMode: "heightmap",
   debugCutVolumes: false,
+  loadError: null,
+  placement: null,
+  placeMode: false,
 
   loadSvg: (text, name) => {
-    const doc = parseSvg(text);
-    set({ doc, svgName: name });
+    try {
+      const doc = parseSvg(text);
+      set({ doc, svgName: name, loadError: null, placement: null, placeMode: false });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to parse SVG";
+      set({ loadError: msg });
+    }
   },
   setBoardWidth: (mm) => set({ boardWidthMm: mm }),
   setBoardHeight: (mm) => set({ boardHeightMm: mm }),
@@ -58,6 +77,8 @@ export const useStore = create<State>((set) => ({
   setUnits: (units) => set({ units }),
   setRenderMode: (renderMode) => set({ renderMode }),
   setDebugCutVolumes: (debugCutVolumes) => set({ debugCutVolumes }),
+  setPlacement: (placement) => set({ placement }),
+  setPlaceMode: (placeMode) => set({ placeMode }),
 }));
 
 /** Derive the active Tool (diameter + profile) from store state. */

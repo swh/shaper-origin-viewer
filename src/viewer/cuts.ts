@@ -28,6 +28,11 @@ export type BuildCutVolumesOptions = {
    * shallow cuts into polygon-with-holes shapes that confuse the CSG engine.
    */
   preprocessOverlaps?: boolean;
+  /**
+   * Where the SVG's (0, 0) lands on the board, in board-mm. Default centres
+   * the SVG on the board.
+   */
+  origin?: { x: number; y: number };
 };
 
 /**
@@ -36,7 +41,7 @@ export type BuildCutVolumesOptions = {
  * downward (-y) by the cut depth, or all the way through for through-cuts.
  *
  * Coordinate mapping: SVG mm (origin top-left, +Y down) → Three.js (X right,
- * Y up = thickness, Z = svg-y, with the SVG centred on the board).
+ * Y up = thickness, Z = svg-y).
  */
 export function buildCutVolumes(
   doc: Doc,
@@ -44,8 +49,15 @@ export function buildCutVolumes(
   tool: Tool,
   opts: BuildCutVolumesOptions = {},
 ): CutVolume[] {
-  const offsetX = doc.widthMm / 2;
-  const offsetZ = doc.heightMm / 2;
+  // World-position of an SVG vertex (px, py) is (px - offsetX, _, py - offsetZ).
+  // Default origin centres the SVG on the board (origin = (boardW-svgW)/2, etc.),
+  // which makes offsetX = svgW/2 and offsetZ = svgH/2.
+  const origin = opts.origin ?? {
+    x: (board.widthMm - doc.widthMm) / 2,
+    y: (board.heightMm - doc.heightMm) / 2,
+  };
+  const offsetX = board.widthMm / 2 - origin.x;
+  const offsetZ = board.heightMm / 2 - origin.y;
   const preprocess = opts.preprocessOverlaps ?? true;
 
   const ranked = doc.cuts
