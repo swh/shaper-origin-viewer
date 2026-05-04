@@ -279,7 +279,9 @@ export function Sidebar() {
                     ? "border-amber-400 ring-1 ring-amber-400"
                     : "border-neutral-800 hover:border-neutral-600"
                 }`}
-                style={{ backgroundColor: s.color }}
+                style={{
+                  background: `linear-gradient(135deg, ${s.light} 0%, ${s.light} 60%, ${s.dark} 100%)`,
+                }}
                 title={s.label}
               />
             ))}

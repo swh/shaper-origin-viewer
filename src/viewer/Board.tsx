@@ -16,6 +16,7 @@ import { buildCsgMesh } from "./csg";
 import { buildCutVolumes } from "./cuts";
 import { buildHeightmapMesh } from "./heightmap";
 import { type Species, speciesById } from "./species";
+import { applyWoodGrain } from "./wood";
 
 type Props = {
   doc: Doc | null;
@@ -93,10 +94,11 @@ function buildBoardMesh(
   cutOverrides: Record<number, number>,
 ): Mesh {
   const material = new MeshStandardMaterial({
-    color: species.color,
+    color: species.light,
     roughness: species.roughness,
     metalness: species.metalness,
   });
+  applyWoodGrain(material, species);
 
   if (mode === "csg") {
     return buildCsgMesh(doc, board, tool, material, origin, cutOverrides);
