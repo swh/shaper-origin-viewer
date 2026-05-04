@@ -92,7 +92,7 @@ const initialState: Omit<
   boardThicknessMm: 18,
   bitId: DEFAULT_BIT_ID,
   customDiameterMm: 6,
-  speciesId: "plain",
+  speciesId: "mdf",
   units: "mm",
   renderMode: "heightmap",
   debugCutVolumes: false,

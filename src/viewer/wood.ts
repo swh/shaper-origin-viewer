@@ -18,17 +18,20 @@ export function applyWoodGrain(material: MeshStandardMaterial, species: Species)
     shader.uniforms.uGrainLight = { value: new Color(species.light) };
     shader.uniforms.uGrainDark = { value: new Color(species.dark) };
     shader.uniforms.uRingScale = { value: species.ringScale };
+    shader.uniforms.uStippleStrength = { value: species.stippleStrength ?? 0 };
 
     shader.vertexShader = shader.vertexShader
       .replace(
         "#include <common>",
         `#include <common>
-varying vec3 vGrainPosition;`,
+varying vec3 vGrainPosition;
+varying vec3 vGrainNormal;`,
       )
       .replace(
         "#include <begin_vertex>",
         `#include <begin_vertex>
-vGrainPosition = (modelMatrix * vec4(position, 1.0)).xyz;`,
+vGrainPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+vGrainNormal = normalize(mat3(modelMatrix) * normal);`,
       );
 
     shader.fragmentShader = shader.fragmentShader
@@ -36,9 +39,11 @@ vGrainPosition = (modelMatrix * vec4(position, 1.0)).xyz;`,
         "#include <common>",
         `#include <common>
 varying vec3 vGrainPosition;
+varying vec3 vGrainNormal;
 uniform vec3 uGrainLight;
 uniform vec3 uGrainDark;
 uniform float uRingScale;
+uniform float uStippleStrength;
 
 // Hash without sine (Dave Hoskins / Shadertoy).
 float hash13(vec3 p3) {
@@ -98,7 +103,21 @@ float woodGrain(vec3 p) {
       .replace(
         "#include <color_fragment>",
         `#include <color_fragment>
-diffuseColor.rgb = mix(uGrainLight, uGrainDark, woodGrain(vGrainPosition));`,
+diffuseColor.rgb = mix(uGrainLight, uGrainDark, woodGrain(vGrainPosition));
+// Sub-mm stipple for surfaces where the ring pattern is muted/absent.
+if (uStippleStrength > 0.0) {
+  float stipple = noise3(vGrainPosition * 4.0) - 0.5;
+  diffuseColor.rgb *= 1.0 + stipple * uStippleStrength;
+}
+// Depth-based dim: cut floors and walls get progressively darker the further
+// they sit below the board's top face. Mimics ambient occlusion in the
+// recess and gives the eye a clear depth cue on featureless surfaces.
+float depthDim = clamp(1.0 + vGrainPosition.y * 0.012, 0.7, 1.0);
+// Wall dim: surfaces whose normal isn't roughly vertical are vertical cut
+// walls; tint them slightly darker to separate from horizontal floors/tops.
+float upness = abs(vGrainNormal.y);
+float wallDim = mix(0.86, 1.0, upness);
+diffuseColor.rgb *= depthDim * wallDim;`,
       );
   };
   material.needsUpdate = true;
