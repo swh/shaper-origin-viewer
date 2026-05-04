@@ -33,6 +33,8 @@ export type BuildCutVolumesOptions = {
    * the SVG on the board.
    */
   origin?: { x: number; y: number };
+  /** Per-cut tool diameter overrides, keyed by index in `doc.cuts`. */
+  cutOverrides?: Record<number, number>;
 };
 
 /**
@@ -61,8 +63,16 @@ export function buildCutVolumes(
   const preprocess = opts.preprocessOverlaps ?? true;
 
   const ranked = doc.cuts
-    .filter((c): c is Cut & { depthMm: number } => c.depthMm != null && c.depthMm > 0)
-    .map((c) => ({ cut: c, depth: c.depthMm, footprint: cutFootprint(c, tool) }))
+    .map((cut, idx) => ({ cut, idx }))
+    .filter(
+      (e): e is { cut: Cut & { depthMm: number }; idx: number } =>
+        e.cut.depthMm != null && e.cut.depthMm > 0,
+    )
+    .map(({ cut, idx }) => ({
+      cut,
+      depth: cut.depthMm,
+      footprint: cutFootprint(cut, tool, opts.cutOverrides?.[idx]),
+    }))
     .filter((entry) => entry.footprint.length > 0)
     .sort((a, b) => b.depth - a.depth); // deepest first
 
@@ -86,6 +96,30 @@ export function buildCutVolumes(
   }
 
   return volumes;
+}
+
+/**
+ * Build the cut volume for a single cut, without any overlap preprocessing.
+ * Used by the sidebar's hover-highlight to draw exactly that cut on the board.
+ * Returns null when the cut has no removable footprint or zero depth.
+ */
+export function buildSingleCutVolume(
+  cut: Cut,
+  board: BoardParams,
+  tool: Tool,
+  origin: { x: number; y: number },
+  overrideDiameterMm?: number,
+): CutVolume | null {
+  if (cut.depthMm == null || cut.depthMm <= 0) return null;
+  const fp = cutFootprint(cut, tool, overrideDiameterMm);
+  if (fp.length === 0) return null;
+  const offsetX = board.widthMm / 2 - origin.x;
+  const offsetZ = board.heightMm / 2 - origin.y;
+  const isThrough = cut.depthMm >= board.thicknessMm;
+  const extrudeDepth = isThrough ? board.thicknessMm + THROUGH_OVERSHOOT_MM : cut.depthMm;
+  const geometry = footprintToExtrudeGeometry(fp, extrudeDepth, offsetX, offsetZ);
+  if (!geometry) return null;
+  return { geometry, topY: 0, bottomY: -extrudeDepth, isThrough };
 }
 
 /**

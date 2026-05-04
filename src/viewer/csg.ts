@@ -23,6 +23,7 @@ export function buildCsgMesh(
   tool: Tool,
   material: Material,
   origin?: { x: number; y: number },
+  cutOverrides?: Record<number, number>,
 ): Mesh {
   // Board: top face at y=0, bottom at y=-thickness.
   const boardGeom = new BoxGeometry(board.widthMm, board.thicknessMm, board.heightMm);
@@ -37,7 +38,11 @@ export function buildCsgMesh(
   // the deeper volume removes material the shallower one would have anyway.
   // Preprocessing trims shallow cuts into polygon-with-hole donuts whose
   // bridged-ring topology three-bvh-csg drops on the floor.
-  const volumes = buildCutVolumes(doc, board, tool, { preprocessOverlaps: false, origin });
+  const volumes = buildCutVolumes(doc, board, tool, {
+    preprocessOverlaps: false,
+    origin,
+    cutOverrides,
+  });
   if (volumes.length === 0) {
     return new Mesh(boardGeom, material);
   }

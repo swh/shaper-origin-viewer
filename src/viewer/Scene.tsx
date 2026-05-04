@@ -1,9 +1,11 @@
 import { Edges, OrbitControls } from "@react-three/drei";
 import { Canvas, type ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { Tool } from "../depth";
 import type { Doc } from "../parser";
 import { selectTool, useStore } from "../store";
 import { Board } from "./Board";
+import { type BoardParams, buildSingleCutVolume } from "./cuts";
 
 export function Scene() {
   const {
@@ -18,6 +20,8 @@ export function Scene() {
     debugCutVolumes,
     placement,
     placeMode,
+    cutToolOverrides,
+    highlightedCutIndex,
     setPlacement,
     setPlaceMode,
   } = useStore();
@@ -94,6 +98,7 @@ export function Scene() {
         speciesId={speciesId}
         renderMode={renderMode}
         origin={origin}
+        cutOverrides={cutToolOverrides}
         debugCutVolumes={debugCutVolumes}
       />
 
@@ -116,6 +121,17 @@ export function Scene() {
           boardWidthMm={boardWidthMm}
           boardHeightMm={boardHeightMm}
           placement={previewPlacement}
+        />
+      )}
+
+      {doc && highlightedCutIndex != null && (
+        <CutHighlight
+          doc={doc}
+          board={board}
+          tool={tool}
+          origin={origin}
+          cutOverrides={cutToolOverrides}
+          cutIndex={highlightedCutIndex}
         />
       )}
 
@@ -217,6 +233,42 @@ function PlacementPlane({
     >
       <planeGeometry args={[board.widthMm, board.heightMm]} />
       <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>
+  );
+}
+
+/**
+ * Translucent overlay drawing the volume of a single cut on top of the board,
+ * so the user can see which feature corresponds to a given sidebar row while
+ * editing its tool diameter.
+ */
+function CutHighlight({
+  doc,
+  board,
+  tool,
+  origin,
+  cutOverrides,
+  cutIndex,
+}: {
+  doc: Doc;
+  board: BoardParams;
+  tool: Tool;
+  origin: { x: number; y: number };
+  cutOverrides: Record<number, number>;
+  cutIndex: number;
+}) {
+  const volume = useMemo(() => {
+    const cut = doc.cuts[cutIndex];
+    if (!cut) return null;
+    return buildSingleCutVolume(cut, board, tool, origin, cutOverrides[cutIndex]);
+  }, [doc, board, tool, origin, cutOverrides, cutIndex]);
+
+  if (!volume) return null;
+  return (
+    <mesh rotation={[Math.PI / 2, 0, 0]} renderOrder={2}>
+      <primitive attach="geometry" object={volume.geometry} />
+      <meshBasicMaterial color="#fbbf24" transparent opacity={0.4} depthWrite={false} />
+      <Edges color="#fbbf24" />
     </mesh>
   );
 }

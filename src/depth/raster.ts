@@ -26,6 +26,8 @@ export type RasterParams = {
    * here. Defaults to centring the SVG on the board.
    */
   origin?: { x: number; y: number };
+  /** Per-cut tool diameter overrides, keyed by index in `doc.cuts`. */
+  cutOverrides?: Record<number, number>;
 };
 
 const DEFAULT_PITCH_MM = 0.5;
@@ -55,9 +57,9 @@ export function renderDepth(doc: Doc, board: BoardParams, params: RasterParams =
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) throw new Error("could not acquire 2D rendering context for depth raster");
 
-  for (const cut of doc.cuts) {
+  for (const [i, cut] of doc.cuts.entries()) {
     if (cut.depthMm == null || cut.depthMm <= 0) continue;
-    const fp = cutFootprint(cut, tool);
+    const fp = cutFootprint(cut, tool, params.cutOverrides?.[i]);
     if (fp.length === 0) continue;
 
     // Clip work to this cut's footprint AABB. Most cuts cover a tiny fraction

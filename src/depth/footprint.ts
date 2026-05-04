@@ -13,8 +13,13 @@ import { DEFAULT_TOOL, EMPTY_FOOTPRINT, type Footprint, type Tool } from "./type
  *   outside  kept = inside polygon  → +o shifts the kerf inward (part shrinks)
  *   online   no kept side defined   → offset must already be 0 (parser enforces)
  */
-export function cutFootprint(cut: Cut, defaultTool: Tool = DEFAULT_TOOL): Footprint {
-  const toolDia = cut.toolDiaMm ?? defaultTool.diameterMm;
+export function cutFootprint(
+  cut: Cut,
+  defaultTool: Tool = DEFAULT_TOOL,
+  overrideDiameterMm?: number,
+): Footprint {
+  // Precedence: per-cut UI override > SVG-supplied toolDia > global default.
+  const toolDia = overrideDiameterMm ?? cut.toolDiaMm ?? defaultTool.diameterMm;
   const o = cut.offsetMm;
 
   switch (cut.cutType) {

@@ -25,12 +25,23 @@ type Props = {
   renderMode: RenderMode;
   /** Where the SVG's (0, 0) lands on the board, in board-mm. */
   origin: { x: number; y: number };
+  /** Per-cut tool diameter overrides, keyed by cut index. */
+  cutOverrides: Record<number, number>;
   debugCutVolumes?: boolean;
 };
 
 const RASTER_PITCH_MM = 0.1;
 
-export function Board({ doc, board, tool, speciesId, renderMode, origin, debugCutVolumes }: Props) {
+export function Board({
+  doc,
+  board,
+  tool,
+  speciesId,
+  renderMode,
+  origin,
+  cutOverrides,
+  debugCutVolumes,
+}: Props) {
   const { widthMm, heightMm, thicknessMm } = board;
   const { diameterMm, profile } = tool;
   const debug = !!debugCutVolumes;
@@ -43,6 +54,7 @@ export function Board({ doc, board, tool, speciesId, renderMode, origin, debugCu
             { widthMm, heightMm, thicknessMm },
             { diameterMm, profile },
             origin,
+            cutOverrides,
           )
         : buildBoardMesh(
             doc,
@@ -51,6 +63,7 @@ export function Board({ doc, board, tool, speciesId, renderMode, origin, debugCu
             speciesById(speciesId),
             renderMode,
             origin,
+            cutOverrides,
           ),
     [
       doc,
@@ -62,6 +75,7 @@ export function Board({ doc, board, tool, speciesId, renderMode, origin, debugCu
       speciesId,
       renderMode,
       origin,
+      cutOverrides,
       debug,
     ],
   );
@@ -76,6 +90,7 @@ function buildBoardMesh(
   species: Species,
   mode: RenderMode,
   origin: { x: number; y: number },
+  cutOverrides: Record<number, number>,
 ): Mesh {
   const material = new MeshStandardMaterial({
     color: species.color,
@@ -84,7 +99,7 @@ function buildBoardMesh(
   });
 
   if (mode === "csg") {
-    return buildCsgMesh(doc, board, tool, material, origin);
+    return buildCsgMesh(doc, board, tool, material, origin, cutOverrides);
   }
 
   if (!doc) {
@@ -95,7 +110,12 @@ function buildBoardMesh(
     return new Mesh(geom, material);
   }
 
-  const field = renderDepth(doc, board, { pitchMm: RASTER_PITCH_MM, tool, origin });
+  const field = renderDepth(doc, board, {
+    pitchMm: RASTER_PITCH_MM,
+    tool,
+    origin,
+    cutOverrides,
+  });
   const geom = buildHeightmapMesh(field, board);
   return new Mesh(geom, material);
 }
@@ -110,10 +130,11 @@ function buildDebugCutVolumes(
   board: BoardParams,
   tool: Tool,
   origin: { x: number; y: number },
+  cutOverrides: Record<number, number>,
 ): Group {
   const group = new ThreeGroup();
   if (!doc) return group;
-  const volumes = buildCutVolumes(doc, board, tool, { origin });
+  const volumes = buildCutVolumes(doc, board, tool, { origin, cutOverrides });
   const ROT = new Matrix4().makeRotationX(Math.PI / 2);
   const cutColor = new Color("#ffaa33");
   for (const v of volumes) {
