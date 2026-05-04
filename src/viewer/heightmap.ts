@@ -35,23 +35,42 @@ export function buildHeightmapMesh(field: DepthField, board: BoardParams): Buffe
     indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
 
+  const THROUGH_EPS = 1e-6;
   const depthAt = (r: number, c: number): number => {
     if (r < 0 || r >= rows || c < 0 || c >= cols) return 0; // outside board = uncut surface
     return Math.min(depthMm[r * cols + c], thickness);
   };
+  const isThroughAt = (r: number, c: number): boolean =>
+    r >= 0 && r < rows && c >= 0 && c < cols && depthMm[r * cols + c] >= thickness - THROUGH_EPS;
 
-  // Top quads + interior walls
+  // Top quads + interior walls + bottom (per-cell, skipped where the cut
+  // goes all the way through so the hole is actually open).
   for (let r = 0; r < rows; r++) {
     const z0 = -hHalf + r * mmPerPx;
     const z1 = z0 + mmPerPx;
     for (let c = 0; c < cols; c++) {
       const d = depthAt(r, c);
+      const through = isThroughAt(r, c);
       const yTop = -d;
       const x0 = -wHalf + c * mmPerPx;
       const x1 = x0 + mmPerPx;
 
-      // Top face. CCW from above (+Y view) so the up-facing normal computes correctly.
-      pushQuad([x0, yTop, z0], [x0, yTop, z1], [x1, yTop, z1], [x1, yTop, z0]);
+      // Top face. Skip for through cells — there's no top surface left there.
+      // CCW from above (+Y view) so the up-facing normal computes correctly.
+      if (!through) {
+        pushQuad([x0, yTop, z0], [x0, yTop, z1], [x1, yTop, z1], [x1, yTop, z0]);
+      }
+
+      // Bottom face. Skip for through cells (that's how the hole opens up).
+      // CCW from below (-Y view); reversed compared to top.
+      if (!through) {
+        pushQuad(
+          [x0, -thickness, z0],
+          [x1, -thickness, z0],
+          [x1, -thickness, z1],
+          [x0, -thickness, z1],
+        );
+      }
 
       // East wall (between this cell and east neighbour).
       const dE = depthAt(r, c + 1);
@@ -83,39 +102,33 @@ export function buildHeightmapMesh(field: DepthField, board: BoardParams): Buffe
     }
   }
 
-  // Outer board walls (full thickness, around the board perimeter).
-  // +X face (east wall of board)
-  pushQuad(
-    [wHalf, 0, hHalf],
-    [wHalf, 0, -hHalf],
-    [wHalf, -thickness, -hHalf],
-    [wHalf, -thickness, hHalf],
-  );
-  // -X face (west wall)
-  pushQuad(
-    [-wHalf, 0, -hHalf],
-    [-wHalf, 0, hHalf],
-    [-wHalf, -thickness, hHalf],
-    [-wHalf, -thickness, -hHalf],
-  );
-  // +Z face (south wall) — uses our convention of z=+hHalf at south
-  pushQuad(
-    [-wHalf, 0, hHalf],
-    [wHalf, 0, hHalf],
-    [wHalf, -thickness, hHalf],
-    [-wHalf, -thickness, hHalf],
-  );
-  // -Z face (north wall)
+  // Outer board walls (full thickness, around the board perimeter). Wound CCW
+  // when viewed from outside so the face normal points outward.
+  // +X face (east wall) — viewed from +X, +Z is left, +Y is up.
   pushQuad(
     [wHalf, 0, -hHalf],
-    [-wHalf, 0, -hHalf],
-    [-wHalf, -thickness, -hHalf],
+    [wHalf, 0, hHalf],
+    [wHalf, -thickness, hHalf],
     [wHalf, -thickness, -hHalf],
   );
-  // Bottom face (-Y normal)
+  // -X face (west wall) — viewed from -X, +Z is right, +Y is up.
   pushQuad(
+    [-wHalf, 0, hHalf],
+    [-wHalf, 0, -hHalf],
+    [-wHalf, -thickness, -hHalf],
+    [-wHalf, -thickness, hHalf],
+  );
+  // +Z face (south wall) — viewed from +Z, +X is right, +Y is up.
+  pushQuad(
+    [wHalf, 0, hHalf],
+    [-wHalf, 0, hHalf],
     [-wHalf, -thickness, hHalf],
     [wHalf, -thickness, hHalf],
+  );
+  // -Z face (north wall) — viewed from -Z, +X is left, +Y is up.
+  pushQuad(
+    [-wHalf, 0, -hHalf],
+    [wHalf, 0, -hHalf],
     [wHalf, -thickness, -hHalf],
     [-wHalf, -thickness, -hHalf],
   );

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { BITS, CUSTOM_BIT_ID, bitById } from "../depth";
 import { EXAMPLES } from "../examples";
 import { useStore } from "../store";
@@ -196,15 +197,36 @@ function NumberRow({
   unit: string;
   step?: number;
 }) {
+  // Local draft so typing doesn't trigger a re-render-per-keystroke (rasterising
+  // the depth field is expensive). Commit on Enter or blur; revert on Escape.
+  const [draft, setDraft] = useState(() => String(value));
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commit = () => {
+    const n = Number(draft);
+    if (Number.isFinite(n) && n !== value) onChange(n);
+    else setDraft(String(value));
+  };
+
   return (
     <label className="flex items-center justify-between text-sm gap-2">
       <span className="text-neutral-400">{label}</span>
       <span className="flex items-center gap-1.5">
         <input
           type="number"
-          value={value}
+          value={draft}
           step={step}
-          onChange={(e) => onChange(Number(e.target.value))}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            else if (e.key === "Escape") {
+              setDraft(String(value));
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
           className="w-20 bg-neutral-900 border border-neutral-800 rounded px-2 py-1 text-right text-sm tabular-nums"
         />
         <span className="text-xs text-neutral-500 w-6">{unit}</span>
