@@ -1,9 +1,18 @@
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.ruff_cache/
-.venv/
-*.egg-info/
+node_modules/
 dist/
-build/
-uv.lock
+*.log
+.DS_Store
+
+# Vite cache
+.vite/
+
+# Bundler cache
+.cache/
+
+# Vitest cache
+.vitest_cache/
+coverage/
+
+# Editor
+.idea/
+.vscode/

@@ -5,35 +5,88 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project goal
 
 A 3D viewer that simulates the result of cutting a Shaper Origin SVG into the
-top surface of a board of given dimensions. The user specifies board size (mm
-or inches), loads an SVG, places it on the board, and sees the cut result
-rendered in 3D.
+top surface of a board of given dimensions. The user specifies board size and
+wood species, loads an SVG, drags it onto the board, picks a tool (default 6mm
+upcut, overridable per cut), and sees the cut result rendered in 3D.
 
-For GUI/rendering, prefer the Python bindings of nanogui
-(https://github.com/mitsuba-renderer/nanogui) unless something clearly better
-is found.
+Hosted as a static web app — the user's SVG never leaves the browser.
 
 ## Repository state
 
-Phase 0 scaffolding is in place. The viewer itself is not yet implemented.
+Web app at the repo root (Phase 0 scaffolding). Python implementation has been
+relocated to `python-reference/` and now serves as the executable spec / oracle
+for the TypeScript port.
 
-- `shaper_viewer/` — package; `parser.py` is a stub for phase 1.
-- `tests/` — `pytest` fixtures expose each `examples/*.svg` to tests.
-- `examples/` — Shaper Origin SVGs paired with PNG renderings showing
-  approximately what a cut should look like; used as test fixtures and
-  visual ground truth.
+- `src/` — the web app (Vite + TypeScript + React + react-three-fiber).
+- `tests/` — Vitest tests; load fixtures from `examples/` directly.
+- `examples/` — Shaper Origin SVGs paired with PNG renderings; used as test
+  fixtures and visual ground truth. Shared between the web app and the
+  Python reference.
+- `python-reference/` — the previous Phase 0–2 Python implementation. 53 pytest
+  cases encoding the SVG-format rules; treat as a working oracle to diff
+  against while porting.
 
-## Dev commands
+## Dev commands (web app)
 
-Project uses `uv`. Python ≥ 3.10.
+Stack: pnpm + Vite + TypeScript + React + Three.js (via react-three-fiber +
+drei) + Tailwind 4 + Biome + Vitest.
 
-- `uv sync --extra dev` — install runtime + dev deps (svgelements, shapely,
-  numpy, pillow, pytest, ruff).
-- `uv run pytest -q` — run tests.
-- `uv run pytest tests/test_smoke.py::test_example_readable -q` — run a
-  single test.
-- `uv run ruff check .` — lint.
-- `uv run shaper-viewer <file.svg>` — CLI entry point (stub until phase 3).
+- `pnpm install` — install JS deps.
+- `pnpm dev` — Vite dev server with HMR.
+- `pnpm build` — type-check + production bundle to `dist/`.
+- `pnpm test` — Vitest run-once.
+- `pnpm test:watch` — Vitest in watch mode.
+- `pnpm lint` — Biome (lint + format check).
+- `pnpm format` — Biome format-write.
+
+## Dev commands (Python reference)
+
+For diffing the TS port against known-good behaviour. Run from
+`python-reference/`:
+
+- `uv sync --extra dev` — install runtime + dev deps.
+- `uv run pytest -q` — run all 53 tests.
+- `uv run shaper-viewer <file.svg>` — render top-down depth PNG (handy as a
+  pixel-level oracle for the eventual TS depth-field output).
+
+## Phase plan (web)
+
+Each phase ends with a runnable, testable artefact.
+
+- **0. Scaffolding.** Vite + TS + React + r3f, Tailwind, Biome, Vitest, hello-
+  world 3D scene with orbit controls. Smoke test reads the example SVGs from
+  disk. ✓
+- **1. Parser.** `src/parser/`. svg-pathdata + recursive de Casteljau flatness
+  subdivision, custom transform-stack resolver. 30 Vitest cases + 12 oracle
+  parity cases pinned to the Python output. ✓
+- **2. Depth field.** `src/depth/`. clipper2-js for polygon offset/boolean ops.
+  `cutFootprint(cut, tool)` returns the 2D removal region as a multi-polygon.
+  Heightmap rasterisation skipped — phase 3 will use the polygons directly
+  for ExtrudeGeometry. 17 Vitest cases. ✓
+- **3. 3D viewer.** Board (BoxGeometry) minus union of cut volumes (per-cut
+  ExtrudeGeometry of the depth-field footprint, depth-clamped to thickness +
+  ε for through-cuts) via `three-bvh-csg`. Sidebar with example picker, board
+  W/L/T inputs, wood species swatches, and tool diameter/type controls. ✓
+- **4. Interactions + UI.** Drag-to-place via r3f raycasting, board size,
+  species picker, tool default + per-cut overrides, mm/inch toggle.
+- **5. Polish + ship.** PWA shell, IndexedDB persistence, deployment, Playwright
+  smoke.
+
+## Tool model
+
+- Default tool: **6 mm upcut** (overridable in the UI).
+- Per-cut override: the UI lets the user set diameter and tool type for any
+  individual cut. The SVG's `shaper:toolDia` attribute, if present, is the
+  initial value; otherwise the default applies.
+- Tool *type* (upcut, downcut, compression, straight, v-bit, ball-nose) does
+  not affect cut footprint geometry yet; only the diameter does. Type is
+  reserved for future v-bit / ball-nose rendering.
+
+Old colour-coded SVGs (e.g. `switch-panel.svg`) lack `shaper:toolDia` — without
+the default, their inside/outside kerfs collapse to zero width and don't render.
+
+Offset sign rule: **positive offset eats into the *kept* side** of the cut
+line. Encoded once in the buffer formulas; see `python-reference/shaper_viewer/depth.py::cut_footprint` for the canonical implementation.
 
 ## Shaper Origin SVG conventions
 
@@ -134,5 +187,8 @@ Don't assume px.
 ## Reference material
 
 - `examples/*.svg` + matching `*.png` — test fixtures with expected visual output.
+- `python-reference/` — working Python implementation of phases 0–2. The tests
+  encode the rules executably; the renderer's PNG output is a pixel-level
+  oracle for the TS port.
 - `~/Projects/shaper-origin-inkscape/ext/shaper_origin.py` — canonical colour /
   attribute encoding, mirrored above. Read it if the table looks wrong.

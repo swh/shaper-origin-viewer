@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-EXAMPLES_DIR = Path(__file__).parent.parent / "examples"
+EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 
 EXAMPLE_FILES = {
     "switch_panel": EXAMPLES_DIR / "switch-panel.svg",
