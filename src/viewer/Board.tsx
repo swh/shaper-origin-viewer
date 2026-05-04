@@ -26,7 +26,7 @@ type Props = {
   debugCutVolumes?: boolean;
 };
 
-const RASTER_PITCH_MM = 0.25;
+const RASTER_PITCH_MM = 0.1;
 
 export function Board({ doc, board, tool, speciesId, renderMode, debugCutVolumes }: Props) {
   const { widthMm, heightMm, thicknessMm } = board;

@@ -60,20 +60,35 @@ export function renderDepth(doc: Doc, board: BoardParams, params: RasterParams =
     const fp = cutFootprint(cut, tool);
     if (fp.length === 0) continue;
 
-    ctx.clearRect(0, 0, cols, rows);
+    // Clip work to this cut's footprint AABB. Most cuts cover a tiny fraction
+    // of the board, so getImageData + the per-pixel scan dominate cost when
+    // they run over the full canvas. The fill itself is bounded by the polygon
+    // anyway, so painting outside the bbox can't happen — we just need to
+    // clear that region first.
+    const bbox = footprintBboxPx(fp, origin, pitch, cols, rows);
+    if (!bbox) continue;
+    const { x: bx, y: by, w: bw, h: bh } = bbox;
+
+    ctx.clearRect(bx, by, bw, bh);
     drawFootprint(ctx, fp, origin.x, origin.y, pitch);
     ctx.fillStyle = "#fff";
-    // `nonzero` respects winding direction. clipper2-js emits annular kerfs
-    // as a single bridged ring with the outer traversed CCW (positive
-    // winding) and the inner traversed CW (negative winding). Net winding
-    // inside the kerf = +1 (filled), inside the hole = +1 - 1 = 0 (unfilled).
+    // `nonzero` respects winding direction. Annular kerfs traverse the outer
+    // CCW (winding +1) and inner CW (-1); net inside the kerf = +1 (filled),
+    // inside the hole = 0 (unfilled).
     ctx.fill("nonzero");
 
-    const img = ctx.getImageData(0, 0, cols, rows);
+    const img = ctx.getImageData(bx, by, bw, bh);
     const px = img.data;
     const cutDepth = Math.min(cut.depthMm, board.thicknessMm);
-    for (let i = 0, p = 3; i < depthMm.length; i++, p += 4) {
-      if (px[p] !== 0 && cutDepth > depthMm[i]) depthMm[i] = cutDepth;
+    for (let dy = 0; dy < bh; dy++) {
+      const rowBase = (by + dy) * cols + bx;
+      const pxRowBase = dy * bw * 4 + 3; // alpha byte of column 0
+      for (let dx = 0; dx < bw; dx++) {
+        if (px[pxRowBase + dx * 4] !== 0) {
+          const i = rowBase + dx;
+          if (cutDepth > depthMm[i]) depthMm[i] = cutDepth;
+        }
+      }
     }
   }
 
@@ -86,6 +101,45 @@ export function renderDepth(doc: Doc, board: BoardParams, params: RasterParams =
     boardHeightMm: board.heightMm,
     boardThicknessMm: board.thicknessMm,
   };
+}
+
+/**
+ * Pixel-space AABB of a footprint, clamped to the canvas. Returns null if the
+ * footprint is empty or lies entirely outside the canvas.
+ */
+function footprintBboxPx(
+  fp: Footprint,
+  origin: { x: number; y: number },
+  pitch: number,
+  cols: number,
+  rows: number,
+): { x: number; y: number; w: number; h: number } | null {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const polygon of fp) {
+    for (const ring of polygon) {
+      for (const [x, y] of ring) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (!Number.isFinite(minX)) return null;
+
+  // 1-pixel pad to absorb rounding and Canvas2D antialiased edges.
+  const PAD = 1;
+  const x0 = Math.max(0, Math.floor((minX + origin.x) / pitch) - PAD);
+  const y0 = Math.max(0, Math.floor((minY + origin.y) / pitch) - PAD);
+  const x1 = Math.min(cols, Math.ceil((maxX + origin.x) / pitch) + PAD);
+  const y1 = Math.min(rows, Math.ceil((maxY + origin.y) / pitch) + PAD);
+  const w = x1 - x0;
+  const h = y1 - y0;
+  if (w <= 0 || h <= 0) return null;
+  return { x: x0, y: y0, w, h };
 }
 
 function drawFootprint(
