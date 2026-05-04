@@ -131,8 +131,6 @@ pnpm test     # vitest run-once
 pnpm build    # production bundle into dist/
 ```
 
-Architecture and contribution notes live in `CLAUDE.md`.
-
 ## Licence
 
 [GPL-3.0](LICENSE).
