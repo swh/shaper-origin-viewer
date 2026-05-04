@@ -12,6 +12,7 @@ export function Scene() {
     bitId,
     customDiameterMm,
     speciesId,
+    renderMode,
     debugCutVolumes,
   } = useStore();
   const tool = selectTool({ bitId, customDiameterMm });
@@ -48,6 +49,7 @@ export function Scene() {
         }}
         tool={tool}
         speciesId={speciesId}
+        renderMode={renderMode}
         debugCutVolumes={debugCutVolumes}
       />
 

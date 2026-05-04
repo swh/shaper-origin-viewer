@@ -14,6 +14,7 @@ export function Sidebar() {
     customDiameterMm,
     speciesId,
     doc,
+    renderMode,
     debugCutVolumes,
     loadSvg,
     setBoardWidth,
@@ -22,6 +23,7 @@ export function Sidebar() {
     setBitId,
     setCustomDiameter,
     setSpecies,
+    setRenderMode,
     setDebugCutVolumes,
   } = useStore();
   const selectedBit = bitId === CUSTOM_BIT_ID ? null : bitById(bitId);
@@ -152,7 +154,30 @@ export function Sidebar() {
           )}
         </Section>
 
-        <Section label="Debug">
+        <Section label="Render mode">
+          <div className="flex rounded border border-neutral-800 overflow-hidden text-sm">
+            {(["csg", "heightmap"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setRenderMode(mode)}
+                className={`flex-1 px-2 py-1.5 transition ${
+                  renderMode === mode
+                    ? "bg-amber-400/20 text-amber-200"
+                    : "text-neutral-400 hover:bg-neutral-900"
+                }`}
+              >
+                {mode === "csg" ? "CSG" : "Heightmap"}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-neutral-500 leading-tight">
+            CSG gives smooth curved walls but can fail on tricky topology. Heightmap is rasterised
+            and always renders something, at the cost of stair-stepped walls.
+          </p>
+        </Section>
+
+        <Section label="Cut volumes">
           <label className="flex items-center justify-between text-sm gap-2">
             <span className="text-neutral-400">Show cut volumes</span>
             <input
@@ -163,9 +188,8 @@ export function Sidebar() {
             />
           </label>
           <p className="text-[11px] text-neutral-500 leading-tight">
-            Bypass CSG and render each cut volume as a translucent coloured mesh. If these don't
-            match the SVG, the bug is in geometry building (parser / footprint / extruder); if they
-            look right but the CSG output doesn't, the bug is in CSG.
+            Replace the board with the raw extruded volume of every cut. Useful for checking what
+            the router will actually remove.
           </p>
         </Section>
       </div>

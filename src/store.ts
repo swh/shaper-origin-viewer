@@ -3,6 +3,7 @@ import { CUSTOM_BIT_ID, DEFAULT_BIT_ID, type Tool, bitById, bitToTool } from "./
 import { type Doc, parseSvg } from "./parser";
 
 export type Units = "mm" | "in";
+export type RenderMode = "csg" | "heightmap";
 
 type State = {
   doc: Doc | null;
@@ -16,6 +17,7 @@ type State = {
   customDiameterMm: number;
   speciesId: string;
   units: Units;
+  renderMode: RenderMode;
   debugCutVolumes: boolean;
 
   loadSvg: (text: string, name: string) => void;
@@ -26,6 +28,7 @@ type State = {
   setCustomDiameter: (mm: number) => void;
   setSpecies: (id: string) => void;
   setUnits: (u: Units) => void;
+  setRenderMode: (m: RenderMode) => void;
   setDebugCutVolumes: (v: boolean) => void;
 };
 
@@ -39,6 +42,7 @@ export const useStore = create<State>((set) => ({
   customDiameterMm: 6,
   speciesId: "oak",
   units: "mm",
+  renderMode: "heightmap",
   debugCutVolumes: false,
 
   loadSvg: (text, name) => {
@@ -52,6 +56,7 @@ export const useStore = create<State>((set) => ({
   setCustomDiameter: (customDiameterMm) => set({ customDiameterMm }),
   setSpecies: (speciesId) => set({ speciesId }),
   setUnits: (units) => set({ units }),
+  setRenderMode: (renderMode) => set({ renderMode }),
   setDebugCutVolumes: (debugCutVolumes) => set({ debugCutVolumes }),
 }));
 

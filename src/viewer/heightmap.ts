@@ -5,11 +5,18 @@ import type { BoardParams, DepthField } from "../depth";
  * Build a Three.js BufferGeometry of the board with cuts applied, from a
  * rasterised depth field.
  *
- * Algorithm: each cell of the depth field becomes a flat top quad at its
- * cut depth. Where adjacent cells differ in depth, a vertical wall quad
- * is added. Add the four outer walls and the bottom of the board. No CSG
- * involved — purely additive mesh construction, which is robust against
- * the topological edge cases that broke the polygon-CSG pipeline.
+ * Algorithm: each row of the depth field is run-length-encoded into wide
+ * top/bottom quads spanning the longest stretch of constant-depth cells.
+ * Walls between cells of differing depth are emitted similarly — east walls
+ * are RLE'd along the Z axis at each column boundary, south walls along X
+ * at each row boundary. For a board where most cells are uncut (typical),
+ * this drops the triangle count from ~cells×4 to ~runs×4, which is one or
+ * two orders of magnitude smaller, and lets us run finer raster pitches
+ * without exploding the mesh.
+ *
+ * Through cells (depth ≥ thickness) get no top or bottom quad — that's how
+ * the hole opens. Their boundary walls span 0..thickness, forming the inside
+ * face of the hole.
  *
  * Coordinate convention: SVG-mm flat-laid in the XZ plane, +Y is the
  * board's thickness direction. Top of the board sits at y=0; bottom at
@@ -20,6 +27,7 @@ export function buildHeightmapMesh(field: DepthField, board: BoardParams): Buffe
   const wHalf = board.widthMm / 2;
   const hHalf = board.heightMm / 2;
   const thickness = board.thicknessMm;
+  const THROUGH_EPS = 1e-6;
 
   const positions: number[] = [];
   const indices: number[] = [];
@@ -35,35 +43,32 @@ export function buildHeightmapMesh(field: DepthField, board: BoardParams): Buffe
     indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
 
-  const THROUGH_EPS = 1e-6;
   const depthAt = (r: number, c: number): number => {
-    if (r < 0 || r >= rows || c < 0 || c >= cols) return 0; // outside board = uncut surface
+    if (r < 0 || r >= rows || c < 0 || c >= cols) return 0;
     return Math.min(depthMm[r * cols + c], thickness);
   };
   const isThroughAt = (r: number, c: number): boolean =>
     r >= 0 && r < rows && c >= 0 && c < cols && depthMm[r * cols + c] >= thickness - THROUGH_EPS;
 
-  // Top quads + interior walls + bottom (per-cell, skipped where the cut
-  // goes all the way through so the hole is actually open).
+  // ------ Top + bottom faces, row-wise RLE ------
   for (let r = 0; r < rows; r++) {
     const z0 = -hHalf + r * mmPerPx;
     const z1 = z0 + mmPerPx;
-    for (let c = 0; c < cols; c++) {
+    let c = 0;
+    while (c < cols) {
       const d = depthAt(r, c);
       const through = isThroughAt(r, c);
-      const yTop = -d;
-      const x0 = -wHalf + c * mmPerPx;
-      const x1 = x0 + mmPerPx;
-
-      // Top face. Skip for through cells — there's no top surface left there.
-      // CCW from above (+Y view) so the up-facing normal computes correctly.
-      if (!through) {
-        pushQuad([x0, yTop, z0], [x0, yTop, z1], [x1, yTop, z1], [x1, yTop, z0]);
+      let cEnd = c + 1;
+      while (cEnd < cols && depthAt(r, cEnd) === d && isThroughAt(r, cEnd) === through) {
+        cEnd++;
       }
-
-      // Bottom face. Skip for through cells (that's how the hole opens up).
-      // CCW from below (-Y view); reversed compared to top.
       if (!through) {
+        const x0 = -wHalf + c * mmPerPx;
+        const x1 = -wHalf + cEnd * mmPerPx;
+        const yTop = -d;
+        // Top face. CCW from above (+Y).
+        pushQuad([x0, yTop, z0], [x0, yTop, z1], [x1, yTop, z1], [x1, yTop, z0]);
+        // Bottom face. CCW from below (-Y).
         pushQuad(
           [x0, -thickness, z0],
           [x1, -thickness, z0],
@@ -71,61 +76,91 @@ export function buildHeightmapMesh(field: DepthField, board: BoardParams): Buffe
           [x0, -thickness, z1],
         );
       }
-
-      // East wall (between this cell and east neighbour).
-      const dE = depthAt(r, c + 1);
-      if (dE !== d) {
-        const deep = Math.max(d, dE);
-        const shallow = Math.min(d, dE);
-        if (dE > d) {
-          // East cell is deeper. Material on west side, empty on east. Normal +X.
-          pushQuad([x1, -shallow, z0], [x1, -shallow, z1], [x1, -deep, z1], [x1, -deep, z0]);
-        } else {
-          // West (this) cell is deeper. Normal -X.
-          pushQuad([x1, -shallow, z1], [x1, -shallow, z0], [x1, -deep, z0], [x1, -deep, z1]);
-        }
-      }
-
-      // South wall (between this cell and south neighbour).
-      const dS = depthAt(r + 1, c);
-      if (dS !== d) {
-        const deep = Math.max(d, dS);
-        const shallow = Math.min(d, dS);
-        if (dS > d) {
-          // South cell is deeper. Material on north (this) side. Normal +Z.
-          pushQuad([x1, -shallow, z1], [x0, -shallow, z1], [x0, -deep, z1], [x1, -deep, z1]);
-        } else {
-          // North (this) cell is deeper. Normal -Z.
-          pushQuad([x0, -shallow, z1], [x1, -shallow, z1], [x1, -deep, z1], [x0, -deep, z1]);
-        }
-      }
+      c = cEnd;
     }
   }
 
-  // Outer board walls (full thickness, around the board perimeter). Wound CCW
-  // when viewed from outside so the face normal points outward.
-  // +X face (east wall) — viewed from +X, +Z is left, +Y is up.
+  // ------ East walls (vertical, between cell columns), Z-axis RLE ------
+  // Boundary at x = -wHalf + (c+1) * mmPerPx, between column c (west) and c+1 (east).
+  for (let c = 0; c < cols; c++) {
+    let r = 0;
+    while (r < rows) {
+      const dW = depthAt(r, c);
+      const dE = depthAt(r, c + 1);
+      if (dW === dE) {
+        r++;
+        continue;
+      }
+      let rEnd = r + 1;
+      while (rEnd < rows && depthAt(rEnd, c) === dW && depthAt(rEnd, c + 1) === dE) {
+        rEnd++;
+      }
+      const x = -wHalf + (c + 1) * mmPerPx;
+      const zStart = -hHalf + r * mmPerPx;
+      const zEnd = -hHalf + rEnd * mmPerPx;
+      const deep = Math.max(dW, dE);
+      const shallow = Math.min(dW, dE);
+      if (dE > dW) {
+        // East cell deeper, normal +X.
+        pushQuad([x, -shallow, zStart], [x, -shallow, zEnd], [x, -deep, zEnd], [x, -deep, zStart]);
+      } else {
+        // West cell deeper, normal -X.
+        pushQuad([x, -shallow, zEnd], [x, -shallow, zStart], [x, -deep, zStart], [x, -deep, zEnd]);
+      }
+      r = rEnd;
+    }
+  }
+
+  // ------ South walls (vertical, between cell rows), X-axis RLE ------
+  // Boundary at z = -hHalf + (r+1) * mmPerPx, between row r (north) and r+1 (south).
+  for (let r = 0; r < rows; r++) {
+    let c = 0;
+    while (c < cols) {
+      const dN = depthAt(r, c);
+      const dS = depthAt(r + 1, c);
+      if (dN === dS) {
+        c++;
+        continue;
+      }
+      let cEnd = c + 1;
+      while (cEnd < cols && depthAt(r, cEnd) === dN && depthAt(r + 1, cEnd) === dS) {
+        cEnd++;
+      }
+      const z = -hHalf + (r + 1) * mmPerPx;
+      const xStart = -wHalf + c * mmPerPx;
+      const xEnd = -wHalf + cEnd * mmPerPx;
+      const deep = Math.max(dN, dS);
+      const shallow = Math.min(dN, dS);
+      if (dS > dN) {
+        // South cell deeper, normal +Z.
+        pushQuad([xEnd, -shallow, z], [xStart, -shallow, z], [xStart, -deep, z], [xEnd, -deep, z]);
+      } else {
+        // North cell deeper, normal -Z.
+        pushQuad([xStart, -shallow, z], [xEnd, -shallow, z], [xEnd, -deep, z], [xStart, -deep, z]);
+      }
+      c = cEnd;
+    }
+  }
+
+  // ------ Outer board walls (CCW from outside) ------
   pushQuad(
     [wHalf, 0, -hHalf],
     [wHalf, 0, hHalf],
     [wHalf, -thickness, hHalf],
     [wHalf, -thickness, -hHalf],
   );
-  // -X face (west wall) — viewed from -X, +Z is right, +Y is up.
   pushQuad(
     [-wHalf, 0, hHalf],
     [-wHalf, 0, -hHalf],
     [-wHalf, -thickness, -hHalf],
     [-wHalf, -thickness, hHalf],
   );
-  // +Z face (south wall) — viewed from +Z, +X is right, +Y is up.
   pushQuad(
     [wHalf, 0, hHalf],
     [-wHalf, 0, hHalf],
     [-wHalf, -thickness, hHalf],
     [wHalf, -thickness, hHalf],
   );
-  // -Z face (north wall) — viewed from -Z, +X is left, +Y is up.
   pushQuad(
     [-wHalf, 0, -hHalf],
     [wHalf, 0, -hHalf],

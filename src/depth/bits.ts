@@ -11,7 +11,7 @@ export type Bit = {
   profile: BitProfile;
   /** Nominal cutting diameter at the widest point. */
   diameterMm: number;
-  /** Included angle for v / dovetail bits, where defined. */
+  /** Included angle for v-bits, where defined. */
   angleDeg?: number;
   group: BitGroup;
 };
@@ -22,6 +22,10 @@ const inch = (n: number) => n * 25.4;
  * Catalogue of router bits Shaper sells. Direction (upcut / downcut /
  * compression) and cutting-edge length are intentionally omitted — they don't
  * change the rendered cut shape, only the diameter and profile do.
+ *
+ * Undercutting bits (T-slot, dovetail) are excluded: the heightmap renderer
+ * is 2.5D and can't represent overhangs where material below is wider than
+ * the slot mouth.
  */
 export const BITS: readonly Bit[] = [
   // ---------- Metric ----------
@@ -75,22 +79,6 @@ export const BITS: readonly Bit[] = [
     profile: "v",
     diameterMm: 7,
     angleDeg: 60,
-    group: "metric",
-  },
-  { id: "m-tslot-5", label: "5 mm T-Slot", profile: "t-slot", diameterMm: 5, group: "metric" },
-  {
-    id: "m-dovetail-15",
-    label: "15° Dovetail",
-    profile: "dovetail",
-    diameterMm: 12.7,
-    angleDeg: 15,
-    group: "metric",
-  },
-  {
-    id: "m-dovetail-keil",
-    label: "Keilverbinder Dovetail",
-    profile: "dovetail",
-    diameterMm: 12.7,
     group: "metric",
   },
   {

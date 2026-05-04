@@ -19,26 +19,34 @@ export type BoardParams = {
   thicknessMm: number;
 };
 
+export type BuildCutVolumesOptions = {
+  /**
+   * When true (default), shallower cut footprints are trimmed by the union of
+   * all deeper cuts so the resulting volumes don't overlap. Useful for the
+   * debug renderer; not always desirable for CSG, where overlapping volumes
+   * are fine (subtraction handles them cleanly) and the trimming step turns
+   * shallow cuts into polygon-with-holes shapes that confuse the CSG engine.
+   */
+  preprocessOverlaps?: boolean;
+};
+
 /**
  * Build extruded "cut volumes" — Three.js geometries shaped like the material
  * each cut removes. They sit at the top of the board (y=0) and extrude
  * downward (-y) by the cut depth, or all the way through for through-cuts.
  *
- * **Deepest-cut-wins preprocessing.** Real Shaper files often have multiple
- * cuts overlapping at the same (x,y) — typically a deep `inside` kerf inside
- * a shallower `pocket`. CSG handles disjoint cut volumes cleanly but produces
- * non-manifold artefacts when input volumes overlap, so we sort cuts deepest
- * first and trim each shallower cut's footprint by the union of all deeper
- * cuts already accounted for. The shallower cut becomes a no-op wherever a
- * deeper cut already removed material there — exactly the semantics the
- * Python reference implements with `np.maximum`.
- *
  * Coordinate mapping: SVG mm (origin top-left, +Y down) → Three.js (X right,
  * Y up = thickness, Z = svg-y, with the SVG centred on the board).
  */
-export function buildCutVolumes(doc: Doc, board: BoardParams, tool: Tool): CutVolume[] {
+export function buildCutVolumes(
+  doc: Doc,
+  board: BoardParams,
+  tool: Tool,
+  opts: BuildCutVolumesOptions = {},
+): CutVolume[] {
   const offsetX = doc.widthMm / 2;
   const offsetZ = doc.heightMm / 2;
+  const preprocess = opts.preprocessOverlaps ?? true;
 
   const ranked = doc.cuts
     .filter((c): c is Cut & { depthMm: number } => c.depthMm != null && c.depthMm > 0)
@@ -50,7 +58,7 @@ export function buildCutVolumes(doc: Doc, board: BoardParams, tool: Tool): CutVo
   let claimed: Footprint = [];
 
   for (const { cut, depth, footprint } of ranked) {
-    const effective = claimed.length === 0 ? footprint : difference(footprint, claimed);
+    const effective = preprocess && claimed.length > 0 ? difference(footprint, claimed) : footprint;
     if (effective.length === 0) continue; // fully covered by a deeper cut already
 
     const isThrough = depth >= board.thicknessMm;
@@ -59,7 +67,9 @@ export function buildCutVolumes(doc: Doc, board: BoardParams, tool: Tool): CutVo
     if (!geom) continue;
     volumes.push({ geometry: geom, topY: 0, bottomY: -extrudeDepth, isThrough });
 
-    claimed = claimed.length === 0 ? footprint : union(claimed, footprint);
+    if (preprocess) {
+      claimed = claimed.length === 0 ? footprint : union(claimed, footprint);
+    }
     void cut; // future: per-cut metadata (cut.cutType, cut.depthMm) for UI overlays
   }
 

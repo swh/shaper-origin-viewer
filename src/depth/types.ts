@@ -5,8 +5,11 @@ import type { Ring } from "../parser/types";
  * compression) is intentionally absent — it doesn't affect what the cut looks
  * like, only how chips evacuate. Today only `flat` is rendered correctly; the
  * others fall back to a flat-bottomed kerf at the nominal diameter.
+ *
+ * Undercutting profiles (T-slot, dovetail) are excluded because the heightmap
+ * renderer can't represent overhangs.
  */
-export type BitProfile = "flat" | "ball" | "v" | "t-slot" | "dovetail" | "coving" | "fingerpull";
+export type BitProfile = "flat" | "ball" | "v" | "coving" | "fingerpull";
 
 export type Tool = {
   diameterMm: number;

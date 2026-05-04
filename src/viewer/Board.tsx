@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import {
+  BoxGeometry,
   Color,
   type Group,
   Matrix4,
@@ -10,6 +11,8 @@ import {
 } from "three";
 import { type BoardParams, type Tool, renderDepth } from "../depth";
 import type { Doc } from "../parser";
+import type { RenderMode } from "../store";
+import { buildCsgMesh } from "./csg";
 import { buildCutVolumes } from "./cuts";
 import { buildHeightmapMesh } from "./heightmap";
 import { type Species, speciesById } from "./species";
@@ -19,12 +22,13 @@ type Props = {
   board: BoardParams;
   tool: Tool;
   speciesId: string;
+  renderMode: RenderMode;
   debugCutVolumes?: boolean;
 };
 
-const RASTER_PITCH_MM = 0.5;
+const RASTER_PITCH_MM = 0.25;
 
-export function Board({ doc, board, tool, speciesId, debugCutVolumes }: Props) {
+export function Board({ doc, board, tool, speciesId, renderMode, debugCutVolumes }: Props) {
   const { widthMm, heightMm, thicknessMm } = board;
   const { diameterMm, profile } = tool;
   const debug = !!debugCutVolumes;
@@ -38,26 +42,37 @@ export function Board({ doc, board, tool, speciesId, debugCutVolumes }: Props) {
             { widthMm, heightMm, thicknessMm },
             { diameterMm, profile },
             speciesById(speciesId),
+            renderMode,
           ),
-    [doc, widthMm, heightMm, thicknessMm, diameterMm, profile, speciesId, debug],
+    [doc, widthMm, heightMm, thicknessMm, diameterMm, profile, speciesId, renderMode, debug],
   );
 
   return <primitive object={node} />;
 }
 
-function buildBoardMesh(doc: Doc | null, board: BoardParams, tool: Tool, species: Species): Mesh {
+function buildBoardMesh(
+  doc: Doc | null,
+  board: BoardParams,
+  tool: Tool,
+  species: Species,
+  mode: RenderMode,
+): Mesh {
   const material = new MeshStandardMaterial({
     color: species.color,
     roughness: species.roughness,
     metalness: species.metalness,
   });
 
+  if (mode === "csg") {
+    return buildCsgMesh(doc, board, tool, material);
+  }
+
   if (!doc) {
-    // Empty board: a featureless heightmap with depth 0 everywhere.
-    const empty = renderDepth({ widthMm: 0, heightMm: 0, cuts: [], anchor: null }, board, {
-      pitchMm: Math.max(board.widthMm, board.heightMm), // single cell
-    });
-    return new Mesh(buildHeightmapMesh(empty, board), material);
+    // Empty board: skip the heightmap raster and emit a plain box. Top at y=0,
+    // bottom at y=-thickness to match the heightmap's coordinate convention.
+    const geom = new BoxGeometry(board.widthMm, board.thicknessMm, board.heightMm);
+    geom.translate(0, -board.thicknessMm / 2, 0);
+    return new Mesh(geom, material);
   }
 
   const field = renderDepth(doc, board, { pitchMm: RASTER_PITCH_MM, tool });
@@ -66,24 +81,23 @@ function buildBoardMesh(doc: Doc | null, board: BoardParams, tool: Tool, species
 }
 
 /**
- * Debug renderer: emit each cut volume as its own colored translucent mesh,
- * skipping CSG entirely. If a cut looks wrong here, the bug is upstream
- * (parser, footprint, or extruder); if it only goes wrong inside CSG, the bug
- * is downstream.
+ * Show the raw extruded volume of every cut as a single translucent overlay.
+ * Useful for understanding which cut produces which feature, especially when
+ * a cut renders unexpectedly in the main view.
  */
 function buildDebugCutVolumes(doc: Doc | null, board: BoardParams, tool: Tool): Group {
   const group = new ThreeGroup();
   if (!doc) return group;
   const volumes = buildCutVolumes(doc, board, tool);
-  const palette = ["#ff5555", "#55aaff", "#88dd55", "#ffcc44", "#dd66dd", "#33dddd"];
   const ROT = new Matrix4().makeRotationX(Math.PI / 2);
-  for (const [i, v] of volumes.entries()) {
+  const cutColor = new Color("#ffaa33");
+  for (const v of volumes) {
     const g = v.geometry.clone();
     g.applyMatrix4(ROT);
     const mat = new MeshBasicMaterial({
-      color: new Color(palette[i % palette.length]),
+      color: cutColor,
       transparent: true,
-      opacity: 0.55,
+      opacity: 0.4,
       depthWrite: false,
       wireframe: false,
     });
