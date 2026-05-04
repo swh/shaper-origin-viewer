@@ -1,6 +1,5 @@
 import { type DragEvent, useEffect, useRef, useState } from "react";
 import { BITS, CUSTOM_BIT_ID, bitById } from "../depth";
-import { EXAMPLES } from "../examples";
 import type { Cut } from "../parser";
 import { type Units, useStore } from "../store";
 import {
@@ -160,29 +159,6 @@ export function Sidebar() {
             <span className="block">Drop an SVG here</span>
             <span className="block text-[10px] text-neutral-500 mt-0.5">or click to browse</span>
           </label>
-
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-neutral-600">
-            <span className="flex-1 border-t border-neutral-800" />
-            or pick an example
-            <span className="flex-1 border-t border-neutral-800" />
-          </div>
-
-          <select
-            className="w-full bg-neutral-900 border border-neutral-800 rounded px-2 py-1.5 text-sm"
-            value={svgName ?? ""}
-            onChange={(e) => {
-              const id = e.target.value;
-              const ex = EXAMPLES.find((x) => x.id === id);
-              if (ex) loadSvg(ex.text, ex.id);
-            }}
-          >
-            <option value="">— select —</option>
-            {EXAMPLES.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.label}
-              </option>
-            ))}
-          </select>
 
           {loadError && (
             <p className="text-xs text-red-400 leading-tight">Couldn't parse SVG: {loadError}</p>
