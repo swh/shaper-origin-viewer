@@ -39,16 +39,6 @@ drei) + Tailwind 4 + Biome + Vitest.
 - `pnpm lint` — Biome (lint + format check).
 - `pnpm format` — Biome format-write.
 
-## Dev commands (Python reference)
-
-For diffing the TS port against known-good behaviour. Run from
-`python-reference/`:
-
-- `uv sync --extra dev` — install runtime + dev deps.
-- `uv run pytest -q` — run all 53 tests.
-- `uv run shaper-viewer <file.svg>` — render top-down depth PNG (handy as a
-  pixel-level oracle for the eventual TS depth-field output).
-
 ## Phase plan (web)
 
 Each phase ends with a runnable, testable artefact.
