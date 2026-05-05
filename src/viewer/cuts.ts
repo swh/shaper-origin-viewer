@@ -35,6 +35,8 @@ export type BuildCutVolumesOptions = {
   origin?: { x: number; y: number };
   /** Per-cut tool diameter overrides, keyed by index in `doc.cuts`. */
   cutOverrides?: Record<number, number>;
+  /** Fallback depth for cuts without `shaper:cutDepth` (mm). Default 2. */
+  defaultDepthMm?: number;
 };
 
 /**
@@ -62,15 +64,16 @@ export function buildCutVolumes(
   const offsetZ = board.heightMm / 2 - origin.y;
   const preprocess = opts.preprocessOverlaps ?? true;
 
-  // Cuts without an explicit shaper:cutDepth fall back to a small visible
+  // Cuts without an explicit shaper:cutDepth fall back to a caller-supplied
   // default — keeps plain Inkscape exports renderable.
+  const defaultDepth = opts.defaultDepthMm ?? 2;
   const ranked = doc.cuts
-    .map((cut, idx) => ({ cut, idx, depth: cut.depthMm ?? 2 }))
+    .map((cut, idx) => ({ cut, idx, depth: cut.depthMm ?? defaultDepth }))
     .filter((e) => e.depth > 0)
     .map(({ cut, idx, depth }) => ({
       cut,
       depth,
-      footprint: cutFootprint(cut, tool, opts.cutOverrides?.[idx]),
+      footprint: cutFootprint(cut, tool, opts.cutOverrides?.[idx], defaultDepth),
     }))
     .filter((entry) => entry.footprint.length > 0)
     .sort((a, b) => b.depth - a.depth); // deepest first
@@ -108,10 +111,11 @@ export function buildSingleCutVolume(
   tool: Tool,
   origin: { x: number; y: number },
   overrideDiameterMm?: number,
+  defaultDepthMm = 2,
 ): CutVolume | null {
-  const depth = cut.depthMm ?? 2; // fallback for missing shaper:cutDepth
+  const depth = cut.depthMm ?? defaultDepthMm;
   if (depth <= 0) return null;
-  const fp = cutFootprint(cut, tool, overrideDiameterMm);
+  const fp = cutFootprint(cut, tool, overrideDiameterMm, defaultDepthMm);
   if (fp.length === 0) return null;
   const offsetX = board.widthMm / 2 - origin.x;
   const offsetZ = board.heightMm / 2 - origin.y;

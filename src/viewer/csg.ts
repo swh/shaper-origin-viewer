@@ -24,6 +24,7 @@ export function buildCsgMesh(
   material: Material,
   origin?: { x: number; y: number },
   cutOverrides?: Record<number, number>,
+  defaultDepthMm?: number,
 ): Mesh {
   // Board: top face at y=0, bottom at y=-thickness.
   const boardGeom = new BoxGeometry(board.widthMm, board.thicknessMm, board.heightMm);
@@ -42,6 +43,7 @@ export function buildCsgMesh(
     preprocessOverlaps: false,
     origin,
     cutOverrides,
+    defaultDepthMm,
   });
   if (volumes.length === 0) {
     return new Mesh(boardGeom, material);

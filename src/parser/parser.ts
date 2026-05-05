@@ -51,8 +51,11 @@ export function parseSvg(text: string): Doc {
   const cuts: Cut[] = [];
   let anchor: Point | null = null;
 
-  for (const path of svg.querySelectorAll("path")) {
-    const parsed = parsePath(path, vbToMm, svg);
+  // Process all SVG shape primitives, not just <path>. Inkscape exports
+  // routinely use <rect>/<circle>/<ellipse>/<line>/<polyline>/<polygon>
+  // alongside paths.
+  for (const el of svg.querySelectorAll("path, rect, circle, ellipse, line, polyline, polygon")) {
+    const parsed = parsePath(el, vbToMm, svg);
     if (parsed === null) continue;
     for (const cut of parsed) {
       if (cut.cutType === "anchor") {
@@ -95,7 +98,7 @@ function parsePath(path: Element, vbToMm: Matrix, svgRoot: Element): Cut[] | nul
   }
   if (cutType === null) return null;
 
-  const d = path.getAttribute("d");
+  const d = pathDataFor(path);
   if (!d) return null;
 
   const { rings, closures } = flattenPath(d, m);
@@ -157,6 +160,73 @@ function shaperAttr(el: Element, localName: string): string | null {
   if (ns != null && ns !== "") return ns;
   const q = el.getAttribute(`shaper:${localName}`);
   return q ?? null;
+}
+
+/**
+ * Synthesize an SVG path-data string for any supported shape primitive.
+ * <path> uses its `d` attribute directly; <rect>/<circle>/<ellipse>/<line>/
+ * <polyline>/<polygon> are converted to equivalent path commands so they go
+ * through the same flattening pipeline as paths.
+ */
+function pathDataFor(el: Element): string | null {
+  const tag = el.tagName.toLowerCase();
+  switch (tag) {
+    case "path":
+      return el.getAttribute("d");
+    case "rect": {
+      const x = numAttr(el, "x");
+      const y = numAttr(el, "y");
+      const w = numAttr(el, "width");
+      const h = numAttr(el, "height");
+      if (w <= 0 || h <= 0) return null;
+      // Corner radii (rx/ry) are intentionally skipped — uncommon in CNC SVGs.
+      return `M ${x},${y} H ${x + w} V ${y + h} H ${x} Z`;
+    }
+    case "circle": {
+      const cx = numAttr(el, "cx");
+      const cy = numAttr(el, "cy");
+      const r = numAttr(el, "r");
+      if (r <= 0) return null;
+      // Two semicircle arcs to avoid the SVG ambiguity around full-circle arcs.
+      return `M ${cx - r},${cy} A ${r},${r} 0 0,1 ${cx + r},${cy} A ${r},${r} 0 0,1 ${cx - r},${cy} Z`;
+    }
+    case "ellipse": {
+      const cx = numAttr(el, "cx");
+      const cy = numAttr(el, "cy");
+      const rx = numAttr(el, "rx");
+      const ry = numAttr(el, "ry");
+      if (rx <= 0 || ry <= 0) return null;
+      return `M ${cx - rx},${cy} A ${rx},${ry} 0 0,1 ${cx + rx},${cy} A ${rx},${ry} 0 0,1 ${cx - rx},${cy} Z`;
+    }
+    case "line": {
+      const x1 = numAttr(el, "x1");
+      const y1 = numAttr(el, "y1");
+      const x2 = numAttr(el, "x2");
+      const y2 = numAttr(el, "y2");
+      return `M ${x1},${y1} L ${x2},${y2}`;
+    }
+    case "polyline":
+    case "polygon": {
+      const raw = el.getAttribute("points");
+      if (!raw) return null;
+      const nums = raw
+        .trim()
+        .split(/[\s,]+/)
+        .map(Number);
+      if (nums.length < 4 || nums.length % 2 !== 0) return null;
+      const parts: string[] = [`M ${nums[0]},${nums[1]}`];
+      for (let i = 2; i < nums.length; i += 2) parts.push(`L ${nums[i]},${nums[i + 1]}`);
+      if (tag === "polygon") parts.push("Z");
+      return parts.join(" ");
+    }
+    default:
+      return null;
+  }
+}
+
+function numAttr(el: Element, name: string): number {
+  const v = el.getAttribute(name);
+  return v == null ? 0 : Number.parseFloat(v);
 }
 
 /**

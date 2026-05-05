@@ -28,6 +28,8 @@ type Props = {
   origin: { x: number; y: number };
   /** Per-cut tool diameter overrides, keyed by cut index. */
   cutOverrides: Record<number, number>;
+  /** Fallback depth (mm) for cuts with no shaper:cutDepth. */
+  defaultDepthMm: number;
   debugCutVolumes?: boolean;
 };
 
@@ -41,10 +43,11 @@ export function Board({
   renderMode,
   origin,
   cutOverrides,
+  defaultDepthMm,
   debugCutVolumes,
 }: Props) {
   const { widthMm, heightMm, thicknessMm } = board;
-  const { diameterMm, profile } = tool;
+  const { diameterMm, profile, angleDeg } = tool;
   const debug = !!debugCutVolumes;
 
   const node = useMemo(
@@ -53,18 +56,20 @@ export function Board({
         ? buildDebugCutVolumes(
             doc,
             { widthMm, heightMm, thicknessMm },
-            { diameterMm, profile },
+            { diameterMm, profile, angleDeg },
             origin,
             cutOverrides,
+            defaultDepthMm,
           )
         : buildBoardMesh(
             doc,
             { widthMm, heightMm, thicknessMm },
-            { diameterMm, profile },
+            { diameterMm, profile, angleDeg },
             speciesById(speciesId),
             renderMode,
             origin,
             cutOverrides,
+            defaultDepthMm,
           ),
     [
       doc,
@@ -73,10 +78,12 @@ export function Board({
       thicknessMm,
       diameterMm,
       profile,
+      angleDeg,
       speciesId,
       renderMode,
       origin,
       cutOverrides,
+      defaultDepthMm,
       debug,
     ],
   );
@@ -92,6 +99,7 @@ function buildBoardMesh(
   mode: RenderMode,
   origin: { x: number; y: number },
   cutOverrides: Record<number, number>,
+  defaultDepthMm: number,
 ): Mesh {
   const material = new MeshStandardMaterial({
     color: species.light,
@@ -101,7 +109,7 @@ function buildBoardMesh(
   applyWoodGrain(material, species);
 
   if (mode === "csg") {
-    return buildCsgMesh(doc, board, tool, material, origin, cutOverrides);
+    return buildCsgMesh(doc, board, tool, material, origin, cutOverrides, defaultDepthMm);
   }
 
   if (!doc) {
@@ -117,6 +125,7 @@ function buildBoardMesh(
     tool,
     origin,
     cutOverrides,
+    defaultDepthMm,
   });
   const geom = buildHeightmapMesh(field, board);
   return new Mesh(geom, material);
@@ -133,10 +142,15 @@ function buildDebugCutVolumes(
   tool: Tool,
   origin: { x: number; y: number },
   cutOverrides: Record<number, number>,
+  defaultDepthMm: number,
 ): Group {
   const group = new ThreeGroup();
   if (!doc) return group;
-  const volumes = buildCutVolumes(doc, board, tool, { origin, cutOverrides });
+  const volumes = buildCutVolumes(doc, board, tool, {
+    origin,
+    cutOverrides,
+    defaultDepthMm,
+  });
   const ROT = new Matrix4().makeRotationX(Math.PI / 2);
   const cutColor = new Color("#ffaa33");
   for (const v of volumes) {

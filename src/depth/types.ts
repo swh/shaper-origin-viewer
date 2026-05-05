@@ -14,6 +14,8 @@ export type BitProfile = "flat" | "ball" | "v" | "coving" | "fingerpull";
 export type Tool = {
   diameterMm: number;
   profile: BitProfile;
+  /** Included angle for v-bits, used to compute depth-dependent kerf width. */
+  angleDeg?: number;
 };
 
 /** Default Shaper Origin tool when none is specified per-cut or per-document. */

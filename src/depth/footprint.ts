@@ -13,13 +13,27 @@ import { DEFAULT_TOOL, EMPTY_FOOTPRINT, type Footprint, type Tool } from "./type
  *   outside  kept = inside polygon  → +o shifts the kerf inward (part shrinks)
  *   online   no kept side defined   → offset must already be 0 (parser enforces)
  */
+/** Hard fallback depth used when no caller-supplied default is available. */
+const HARD_FALLBACK_DEPTH_MM = 2;
+
 export function cutFootprint(
   cut: Cut,
   defaultTool: Tool = DEFAULT_TOOL,
   overrideDiameterMm?: number,
+  defaultDepthMm: number = HARD_FALLBACK_DEPTH_MM,
 ): Footprint {
   // Precedence: per-cut UI override > SVG-supplied toolDia > global default.
-  const toolDia = overrideDiameterMm ?? cut.toolDiaMm ?? defaultTool.diameterMm;
+  const nominalDia = overrideDiameterMm ?? cut.toolDiaMm ?? defaultTool.diameterMm;
+  // V-bit: kerf width grows with depth as 2·D·tan(θ/2), capped at the bit's
+  // nominal max diameter. This keeps shallow engraving cuts narrow rather
+  // than mistakenly using the bit's widest point everywhere.
+  let toolDia = nominalDia;
+  if (defaultTool.profile === "v" && defaultTool.angleDeg) {
+    const depth = cut.depthMm ?? defaultDepthMm;
+    const halfAngle = (defaultTool.angleDeg * Math.PI) / 360; // (angle/2) in radians
+    const vKerf = 2 * depth * Math.tan(halfAngle);
+    toolDia = Math.min(nominalDia, vKerf);
+  }
   const o = cut.offsetMm;
 
   switch (cut.cutType) {

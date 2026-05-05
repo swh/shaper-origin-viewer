@@ -185,5 +185,9 @@ export function bitById(id: string): Bit | undefined {
 
 /** Reduce a Bit to the params the depth pipeline cares about. */
 export function bitToTool(bit: Bit): Tool {
-  return { diameterMm: bit.diameterMm, profile: bit.profile };
+  return {
+    diameterMm: bit.diameterMm,
+    profile: bit.profile,
+    ...(bit.angleDeg !== undefined ? { angleDeg: bit.angleDeg } : {}),
+  };
 }

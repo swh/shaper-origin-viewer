@@ -22,6 +22,7 @@ export function Scene() {
     placeMode,
     cutToolOverrides,
     highlightedCutIndex,
+    defaultDepthMm,
     setPlacement,
     setPlaceMode,
   } = useStore();
@@ -99,6 +100,7 @@ export function Scene() {
         renderMode={renderMode}
         origin={origin}
         cutOverrides={cutToolOverrides}
+        defaultDepthMm={defaultDepthMm}
         debugCutVolumes={debugCutVolumes}
       />
 
@@ -131,6 +133,7 @@ export function Scene() {
           tool={tool}
           origin={origin}
           cutOverrides={cutToolOverrides}
+          defaultDepthMm={defaultDepthMm}
           cutIndex={highlightedCutIndex}
         />
       )}
@@ -248,6 +251,7 @@ function CutHighlight({
   tool,
   origin,
   cutOverrides,
+  defaultDepthMm,
   cutIndex,
 }: {
   doc: Doc;
@@ -255,13 +259,14 @@ function CutHighlight({
   tool: Tool;
   origin: { x: number; y: number };
   cutOverrides: Record<number, number>;
+  defaultDepthMm: number;
   cutIndex: number;
 }) {
   const volume = useMemo(() => {
     const cut = doc.cuts[cutIndex];
     if (!cut) return null;
-    return buildSingleCutVolume(cut, board, tool, origin, cutOverrides[cutIndex]);
-  }, [doc, board, tool, origin, cutOverrides, cutIndex]);
+    return buildSingleCutVolume(cut, board, tool, origin, cutOverrides[cutIndex], defaultDepthMm);
+  }, [doc, board, tool, origin, cutOverrides, cutIndex, defaultDepthMm]);
 
   if (!volume) return null;
   return (

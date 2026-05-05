@@ -28,6 +28,8 @@ export type RasterParams = {
   origin?: { x: number; y: number };
   /** Per-cut tool diameter overrides, keyed by index in `doc.cuts`. */
   cutOverrides?: Record<number, number>;
+  /** Fallback depth for cuts without `shaper:cutDepth` (mm). Default 2. */
+  defaultDepthMm?: number;
 };
 
 const DEFAULT_PITCH_MM = 0.5;
@@ -57,12 +59,13 @@ export function renderDepth(doc: Doc, board: BoardParams, params: RasterParams =
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) throw new Error("could not acquire 2D rendering context for depth raster");
 
+  const defaultDepth = params.defaultDepthMm ?? 2;
   for (const [i, cut] of doc.cuts.entries()) {
     // Default depth for cuts without a shaper:cutDepth attribute (common in
-    // plain Inkscape exports) — pick something visible but conservative.
-    const effectiveDepth = cut.depthMm ?? 2;
+    // plain Inkscape exports) — falls back to the caller-supplied default.
+    const effectiveDepth = cut.depthMm ?? defaultDepth;
     if (effectiveDepth <= 0) continue;
-    const fp = cutFootprint(cut, tool, params.cutOverrides?.[i]);
+    const fp = cutFootprint(cut, tool, params.cutOverrides?.[i], defaultDepth);
     if (fp.length === 0) continue;
 
     // Clip work to this cut's footprint AABB. Most cuts cover a tiny fraction

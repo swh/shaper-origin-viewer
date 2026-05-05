@@ -19,6 +19,7 @@ export function Sidebar() {
     boardThicknessMm,
     bitId,
     customDiameterMm,
+    defaultDepthMm,
     speciesId,
     doc,
     debugCutVolumes,
@@ -34,6 +35,7 @@ export function Sidebar() {
     setBoardThickness,
     setBitId,
     setCustomDiameter,
+    setDefaultDepth,
     setSpecies,
     setDebugCutVolumes,
     setPlacement,
@@ -316,15 +318,21 @@ export function Sidebar() {
             </div>
           )}
 
-          {activeProfile !== "flat" && (
+          <NumberRow
+            label="Default depth"
+            valueMm={defaultDepthMm}
+            onChangeMm={setDefaultDepth}
+            units={units}
+          />
+          <p className="text-[11px] text-neutral-500 leading-tight">
+            Used for cuts in the SVG that don't carry a <code>shaper:cutDepth</code> attribute.
+          </p>
+
+          {activeProfile !== "flat" && activeProfile !== "v" && (
             <p className="text-[11px] text-amber-400/80 leading-tight">
               Non-flat profiles render as flat-bottomed kerfs at the nominal diameter for now —{" "}
-              {activeProfile === "v"
-                ? "v-bit"
-                : activeProfile === "ball"
-                  ? "ball-nose"
-                  : activeProfile}{" "}
-              shape modelling lands in a later phase.
+              {activeProfile === "ball" ? "ball-nose" : activeProfile} shape modelling lands in a
+              later phase.
             </p>
           )}
         </Section>

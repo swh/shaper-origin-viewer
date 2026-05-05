@@ -22,6 +22,8 @@ type State = {
   bitId: string;
   /** Diameter for the "custom" bit. Ignored when a catalogue bit is selected. */
   customDiameterMm: number;
+  /** Fallback depth in mm for cuts without a `shaper:cutDepth` attribute. */
+  defaultDepthMm: number;
   speciesId: string;
   units: Units;
   renderMode: RenderMode;
@@ -52,6 +54,7 @@ type State = {
   setBoardThickness: (mm: number) => void;
   setBitId: (id: string) => void;
   setCustomDiameter: (mm: number) => void;
+  setDefaultDepth: (mm: number) => void;
   setSpecies: (id: string) => void;
   setUnits: (u: Units) => void;
   setRenderMode: (m: RenderMode) => void;
@@ -73,6 +76,7 @@ const initialState: Omit<
   | "setBoardThickness"
   | "setBitId"
   | "setCustomDiameter"
+  | "setDefaultDepth"
   | "setSpecies"
   | "setUnits"
   | "setRenderMode"
@@ -92,6 +96,7 @@ const initialState: Omit<
   boardThicknessMm: 18,
   bitId: DEFAULT_BIT_ID,
   customDiameterMm: 6,
+  defaultDepthMm: 2,
   speciesId: "mdf",
   units: "mm",
   renderMode: "heightmap",
@@ -145,6 +150,7 @@ export const useStore = create<State>()(
       setBoardThickness: (mm) => set({ boardThicknessMm: mm }),
       setBitId: (bitId) => set({ bitId }),
       setCustomDiameter: (customDiameterMm) => set({ customDiameterMm }),
+      setDefaultDepth: (defaultDepthMm) => set({ defaultDepthMm }),
       setSpecies: (speciesId) => set({ speciesId }),
       setUnits: (units) => set({ units }),
       setRenderMode: (renderMode) => set({ renderMode }),
@@ -177,6 +183,7 @@ export const useStore = create<State>()(
         boardThicknessMm: s.boardThicknessMm,
         bitId: s.bitId,
         customDiameterMm: s.customDiameterMm,
+        defaultDepthMm: s.defaultDepthMm,
         speciesId: s.speciesId,
         units: s.units,
         renderMode: s.renderMode,
