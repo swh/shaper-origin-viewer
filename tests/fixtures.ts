@@ -8,6 +8,7 @@ export const EXAMPLE_FILES = {
   box_base: "box-base.svg",
   crossover: "Crossover.svg",
   anchor_square: "1 inch square with anchor.svg",
+  cnc_precision_test: "CNC_Precision_Test.svg",
 } as const;
 
 export type ExampleName = keyof typeof EXAMPLE_FILES;

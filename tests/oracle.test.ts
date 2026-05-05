@@ -28,6 +28,14 @@ const ORACLE = {
     anchor: null,
     counts: { outside: 1, pocket: 7, inside: 6 },
   },
+  // Plain Inkscape line drawing — no shaper namespace, no fill, black strokes.
+  // The parser's fallback path classifies all 138 strokes as `online`.
+  cnc_precision_test: {
+    widthMm: 152.4,
+    heightMm: 152.4,
+    anchor: null,
+    counts: { online: 138 },
+  },
 } as const;
 
 describe.each(ALL_EXAMPLES)("oracle parity (%s)", (name) => {

@@ -58,7 +58,10 @@ export function renderDepth(doc: Doc, board: BoardParams, params: RasterParams =
   if (!ctx) throw new Error("could not acquire 2D rendering context for depth raster");
 
   for (const [i, cut] of doc.cuts.entries()) {
-    if (cut.depthMm == null || cut.depthMm <= 0) continue;
+    // Default depth for cuts without a shaper:cutDepth attribute (common in
+    // plain Inkscape exports) — pick something visible but conservative.
+    const effectiveDepth = cut.depthMm ?? 2;
+    if (effectiveDepth <= 0) continue;
     const fp = cutFootprint(cut, tool, params.cutOverrides?.[i]);
     if (fp.length === 0) continue;
 
@@ -81,7 +84,7 @@ export function renderDepth(doc: Doc, board: BoardParams, params: RasterParams =
 
     const img = ctx.getImageData(bx, by, bw, bh);
     const px = img.data;
-    const cutDepth = Math.min(cut.depthMm, board.thicknessMm);
+    const cutDepth = Math.min(effectiveDepth, board.thicknessMm);
     for (let dy = 0; dy < bh; dy++) {
       const rowBase = (by + dy) * cols + bx;
       const pxRowBase = dy * bw * 4 + 3; // alpha byte of column 0

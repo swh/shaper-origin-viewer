@@ -1,5 +1,7 @@
 # Shaper Origin Viewer
 
+**[Try it live → swh.github.io/shaper-origin-viewer](https://swh.github.io/shaper-origin-viewer/)**
+
 A 3D preview tool for [Shaper Origin](https://www.shapertools.com/) SVG cut
 files. Drop in a design, set your board dimensions and bit, and see exactly
 what the cut will look like before you turn the router on.

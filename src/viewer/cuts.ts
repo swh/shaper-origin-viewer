@@ -62,15 +62,14 @@ export function buildCutVolumes(
   const offsetZ = board.heightMm / 2 - origin.y;
   const preprocess = opts.preprocessOverlaps ?? true;
 
+  // Cuts without an explicit shaper:cutDepth fall back to a small visible
+  // default — keeps plain Inkscape exports renderable.
   const ranked = doc.cuts
-    .map((cut, idx) => ({ cut, idx }))
-    .filter(
-      (e): e is { cut: Cut & { depthMm: number }; idx: number } =>
-        e.cut.depthMm != null && e.cut.depthMm > 0,
-    )
-    .map(({ cut, idx }) => ({
+    .map((cut, idx) => ({ cut, idx, depth: cut.depthMm ?? 2 }))
+    .filter((e) => e.depth > 0)
+    .map(({ cut, idx, depth }) => ({
       cut,
-      depth: cut.depthMm,
+      depth,
       footprint: cutFootprint(cut, tool, opts.cutOverrides?.[idx]),
     }))
     .filter((entry) => entry.footprint.length > 0)
@@ -110,13 +109,14 @@ export function buildSingleCutVolume(
   origin: { x: number; y: number },
   overrideDiameterMm?: number,
 ): CutVolume | null {
-  if (cut.depthMm == null || cut.depthMm <= 0) return null;
+  const depth = cut.depthMm ?? 2; // fallback for missing shaper:cutDepth
+  if (depth <= 0) return null;
   const fp = cutFootprint(cut, tool, overrideDiameterMm);
   if (fp.length === 0) return null;
   const offsetX = board.widthMm / 2 - origin.x;
   const offsetZ = board.heightMm / 2 - origin.y;
-  const isThrough = cut.depthMm >= board.thicknessMm;
-  const extrudeDepth = isThrough ? board.thicknessMm + THROUGH_OVERSHOOT_MM : cut.depthMm;
+  const isThrough = depth >= board.thicknessMm;
+  const extrudeDepth = isThrough ? board.thicknessMm + THROUGH_OVERSHOOT_MM : depth;
   const geometry = footprintToExtrudeGeometry(fp, extrudeDepth, offsetX, offsetZ);
   if (!geometry) return null;
   return { geometry, topY: 0, bottomY: -extrudeDepth, isThrough };

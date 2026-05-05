@@ -62,5 +62,13 @@ export function classifyByColor(
   if (f === "white" && s === "black") return "inside";
   if (f === "grey" && (s === "white" || s === null)) return "pocket";
   if ((f === "white" && s === "grey") || (fillOpacity === 0 && s === "grey")) return "online";
+
+  // Fallback for plain stroke-only line drawings (no fill, dark stroke) —
+  // common in Inkscape exports that don't follow Shaper's strict colour
+  // conventions. Treat as `online` so the bit follows the path. Excludes
+  // blue/red strokes since those have dedicated meanings (guide / anchor).
+  const noFill = f === null || fillOpacity === 0;
+  if (noFill && (s === "black" || s === "grey")) return "online";
+
   return null;
 }

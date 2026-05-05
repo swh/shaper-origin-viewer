@@ -52,21 +52,23 @@ export function parseSvg(text: string): Doc {
   let anchor: Point | null = null;
 
   for (const path of svg.querySelectorAll("path")) {
-    const cut = parsePath(path, vbToMm, svg);
-    if (cut === null) continue;
-    if (cut.cutType === "anchor") {
-      if (anchor !== null) throw new Error("multiple anchors are not allowed");
-      if (cut.geometry.kind !== "polygon") throw new Error("anchor must be a closed polygon");
-      anchor = rightAngleVertex(cut.geometry.rings[0]);
-      continue;
+    const parsed = parsePath(path, vbToMm, svg);
+    if (parsed === null) continue;
+    for (const cut of parsed) {
+      if (cut.cutType === "anchor") {
+        if (anchor !== null) throw new Error("multiple anchors are not allowed");
+        if (cut.geometry.kind !== "polygon") throw new Error("anchor must be a closed polygon");
+        anchor = rightAngleVertex(cut.geometry.rings[0]);
+        continue;
+      }
+      cuts.push(cut);
     }
-    cuts.push(cut);
   }
 
   return { widthMm, heightMm, cuts, anchor };
 }
 
-function parsePath(path: Element, vbToMm: Matrix, svgRoot: Element): Cut | null {
+function parsePath(path: Element, vbToMm: Matrix, svgRoot: Element): Cut[] | null {
   // Accumulate ancestor transforms from root → path.
   const stack: Element[] = [];
   let el: Element | null = path;
@@ -80,9 +82,9 @@ function parsePath(path: Element, vbToMm: Matrix, svgRoot: Element): Cut | null 
   }
 
   const cutTypeAttr = shaperAttr(path, "cutType");
-  const fill = path.getAttribute("fill");
-  const stroke = path.getAttribute("stroke");
-  const fillOpacityRaw = path.getAttribute("fill-opacity");
+  const fill = presentationAttr(path, "fill");
+  const stroke = presentationAttr(path, "stroke");
+  const fillOpacityRaw = presentationAttr(path, "fill-opacity");
   const fillOpacity = fillOpacityRaw == null ? 1 : Number.parseFloat(fillOpacityRaw);
 
   let cutType: CutType | null = null;
@@ -100,24 +102,34 @@ function parsePath(path: Element, vbToMm: Matrix, svgRoot: Element): Cut | null 
   if (rings.length === 0) return null;
   const allClosed = closures.every(Boolean);
 
-  let geometry: Geometry;
+  // For closed paths we collapse all subpaths into one polygon (with holes).
+  // For open paths each subpath becomes its own linestring cut — common in
+  // line-drawing SVGs that pack many disjoint strokes into one <path d=…>.
+  let geometries: Geometry[];
   if (allClosed) {
-    if (rings.length === 1) {
-      geometry = { kind: "polygon", rings };
-    } else {
-      // Largest by absolute signed area = exterior; rest treated as holes.
-      const ordered = rings.slice().sort((a, b) => Math.abs(ringArea(b)) - Math.abs(ringArea(a)));
-      geometry = { kind: "polygon", rings: ordered };
-    }
+    const ordered =
+      rings.length === 1
+        ? rings
+        : rings.slice().sort((a, b) => Math.abs(ringArea(b)) - Math.abs(ringArea(a)));
+    geometries = [{ kind: "polygon", rings: ordered }];
   } else {
-    if (rings.length !== 1) {
-      throw new Error("multi-subpath open paths are not supported");
-    }
-    geometry = { kind: "linestring", points: rings[0] };
+    geometries = rings.map((r) => ({ kind: "linestring", points: r }));
   }
 
   if (cutType === "anchor") {
-    return { cutType, depthMm: null, offsetMm: 0, toolDiaMm: null, geometry, closed: allClosed };
+    if (geometries.length !== 1 || geometries[0].kind !== "polygon") {
+      throw new Error("anchor must be a single closed polygon");
+    }
+    return [
+      {
+        cutType,
+        depthMm: null,
+        offsetMm: 0,
+        toolDiaMm: null,
+        geometry: geometries[0],
+        closed: allClosed,
+      },
+    ];
   }
 
   if (!allClosed && cutType !== "online") {
@@ -129,7 +141,14 @@ function parsePath(path: Element, vbToMm: Matrix, svgRoot: Element): Cut | null 
   if (cutType === "online" || cutType === "guide") offsetMm = 0;
   const toolDiaMm = parseLengthMm(shaperAttr(path, "toolDia"));
 
-  return { cutType, depthMm, offsetMm, toolDiaMm, geometry, closed: allClosed };
+  return geometries.map((geometry) => ({
+    cutType,
+    depthMm,
+    offsetMm,
+    toolDiaMm,
+    geometry,
+    closed: allClosed,
+  }));
 }
 
 /** Read a shaper:* attribute. happy-dom's getAttributeNS doesn't honour XML namespaces, so fall back to qname. */
@@ -138,6 +157,28 @@ function shaperAttr(el: Element, localName: string): string | null {
   if (ns != null && ns !== "") return ns;
   const q = el.getAttribute(`shaper:${localName}`);
   return q ?? null;
+}
+
+/**
+ * Read a presentation attribute (fill, stroke, fill-opacity, …) honouring
+ * both the direct-attribute form (`fill="red"`) and the inline-style form
+ * (`style="fill:red"`). Inkscape exports default to the latter; older Fusion
+ * exports to the former. CSS rules say `style` wins over presentation
+ * attributes, but we accept either since they're never both set in practice.
+ */
+function presentationAttr(el: Element, name: string): string | null {
+  const direct = el.getAttribute(name);
+  if (direct != null && direct !== "") return direct;
+  const style = el.getAttribute("style");
+  if (!style) return null;
+  for (const decl of style.split(";")) {
+    const colon = decl.indexOf(":");
+    if (colon === -1) continue;
+    if (decl.slice(0, colon).trim() === name) {
+      return decl.slice(colon + 1).trim();
+    }
+  }
+  return null;
 }
 
 function ringArea(ring: Ring): number {
