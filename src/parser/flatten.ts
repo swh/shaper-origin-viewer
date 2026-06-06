@@ -3,6 +3,7 @@ import type { Matrix } from "./transform";
 import type { Point } from "./types";
 
 const CHORD_TOL_MM = 0.05;
+const CLOSURE_TOL_MM = 1e-6;
 
 export type FlattenedPath = {
   rings: Point[][]; // one entry per subpath
@@ -33,6 +34,16 @@ export function flattenPath(d: string, transform: Matrix): FlattenedPath {
 
   const finishRing = () => {
     if (current.length > 0) {
+      // Treat a subpath whose last point coincides with its first as closed,
+      // even without an explicit Z. Shaper Studio itself emits rounded
+      // rectangles this way (M … L x0,y0 with no trailing Z).
+      if (!closed && current.length >= 3) {
+        const first = current[0];
+        const last = current[current.length - 1];
+        if (Math.hypot(last[0] - first[0], last[1] - first[1]) <= CLOSURE_TOL_MM) {
+          closed = true;
+        }
+      }
       rings.push(current);
       closures.push(closed);
     }

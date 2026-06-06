@@ -169,10 +169,13 @@ Don't assume px.
 
 - **Text elements** (`<text>`) are not used — text must be converted to
   paths before export. The viewer does not need to handle `<text>`.
-- **Path closure**: all paths must be closed (end with `Z`/`z`) *except*
-  `cutType="online"`, which may be open polylines (a centerline has no
-  defined inside/outside, so an open trace is meaningful). `Crossover.svg`
-  has examples of open `online` paths.
+- **Path closure**: all paths must be closed *except* `cutType="online"`,
+  which may be open polylines (a centerline has no defined inside/outside,
+  so an open trace is meaningful). `Crossover.svg` has examples of open
+  `online` paths. Closure can be either an explicit `Z`/`z` command or
+  geometric — Shaper Studio itself emits rounded rectangles as
+  `M x0,y0 A … L x0,y0` with no trailing `Z`, and the parser treats a
+  subpath whose endpoints coincide as closed.
 
 ## Reference material
 
